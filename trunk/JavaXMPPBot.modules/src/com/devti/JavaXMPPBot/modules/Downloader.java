@@ -55,6 +55,7 @@ public class Downloader extends Module {
     private static final Logger logger = Logger.getLogger(Downloader.class.getName());
 
     private Pattern urlPattern;
+    private Pattern tagPattern;
 
     private Connection connection;
     private String dbUrl;
@@ -63,8 +64,8 @@ public class Downloader extends Module {
     private Integer dbRetries;
     private String dbUsername;
     private String dbPassword;
-    private PreparedStatement createTable;
     private PreparedStatement addRecord;
+    private PreparedStatement addTag;
     private PreparedStatement searchRecord;
 
     private HashMap<String, String> extensionsMap;
@@ -83,7 +84,8 @@ public class Downloader extends Module {
         dbRetries = new Integer(bot.getProperty("modules.Downloader.db-retries", "5"));
         dbUsername = bot.getProperty("modules.Downloader.db-username");
         dbPassword = bot.getProperty("modules.Downloader.db-password");
-        urlPattern = Pattern.compile("(" + bot.getProperty("modules.Downloader.url-pattern", "http://[:a-z0-9%$&_./~()?=+-]+") + ")", Pattern.CASE_INSENSITIVE);
+        urlPattern = Pattern.compile(bot.getProperty("modules.Downloader.url-pattern", "http://[:a-z0-9%$&_./~()?=+-]+"), Pattern.CASE_INSENSITIVE);
+        tagPattern = Pattern.compile(bot.getProperty("modules.Downloader.tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]"), Pattern.CASE_INSENSITIVE);
         storeTo = bot.getProperty("modules.Downloader.store-to",  System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
         filenameFormat = bot.getProperty("modules.Downloader.filename-format",  "%ts_%s%s");
         dupReplyFormat = bot.getProperty("modules.Downloader.dup-reply", "%s is duplicate originally posted at %s by %s (%s)");
@@ -142,13 +144,18 @@ public class Downloader extends Module {
         }
     }
 
-    protected void addFile(String md5sum, String from, String url) {
+    protected void addFile(String md5sum, String from, String url, ArrayList<String> tags) {
         try {
             connectToDB();
             addRecord.setString(1, md5sum);
             addRecord.setString(2, from);
             addRecord.setString(3, url);
             addRecord.executeUpdate();
+            for (int i = 0; i < tags.size(); i++) {
+                addTag.setString(1, md5sum);
+                addTag.setString(2, tags.get(i));
+                addTag.executeUpdate();
+            }
         } catch (Exception e) {
             logger.log(Level.WARNING, "An error occurred during adding new record to the DB for url '" + url + "' from '" + from + "' (" + md5sum.toString() + ")", e);
         }
@@ -179,9 +186,12 @@ public class Downloader extends Module {
         }
         // Prepare JDBC statements and create table if it doesn't exist
         try {
-            createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255))"));
+            PreparedStatement createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255))"));
+            createTable.execute();
+            createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_tags` (`md5` TEXT(32), `tag` TEXT(20))"));
             createTable.execute();
             addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`) VALUES (?, strftime('%s','now'), ?, ?)"));
+            addTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
             searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't prepare JDBC statements", e);
@@ -192,11 +202,19 @@ public class Downloader extends Module {
     @Override
     public boolean processMessage(Message msg) {
         String message = msg.body;
-        Matcher matcher = urlPattern.matcher(message);
+        // Get tags
+        ArrayList<String> tags = new ArrayList<String>();
+        Matcher matcher = tagPattern.matcher(message);
+        while (matcher.find()) {
+            tags.add(matcher.group(1));
+        }
+
+        // Get URLs
+        matcher = urlPattern.matcher(message);
         while (matcher.find()) {
             String url = matcher.group();
             logger.log(Level.INFO, "I have got a new URL {0}.", url);
-            DownloaderThread dt = new DownloaderThread(bot, this, url, msg);
+            DownloaderThread dt = new DownloaderThread(bot, this, url, tags, msg);
             dt.start();
         }
         return super.processMessage(msg);
@@ -229,14 +247,16 @@ class DownloaderThread extends Thread {
     private Bot bot;
     private Downloader downloader;
     private String url;
+    private ArrayList<String> tags;
     private Message message;
     private ArrayList<String> acceptableTypes;
 
-    public DownloaderThread(Bot bot, Downloader downloader, String url, Message message) {
+    public DownloaderThread(Bot bot, Downloader downloader, String url, ArrayList<String> tags, Message message) {
         this.bot = bot;
         this.downloader = downloader;
         this.message = message;
         this.url = url;
+        this.tags = tags;
         this.setName(this.getClass().getName() + "(" + bot.getConfigPath() + ")(" + url + ")");
 
         if (bot.getProperty("modules.Downloader.accept") == null) {
@@ -270,9 +290,15 @@ class DownloaderThread extends Thread {
             } else {
                 proxySocketAddress = new InetSocketAddress(0);
             }
-            Proxy proxy = new Proxy(Proxy.Type.valueOf(bot.getProperty("modules.Downloader.proxy.type", "DIRECT")),
-                                    proxySocketAddress
-                                   );
+            Proxy proxy;
+            String proxyType = bot.getProperty("modules.Downloader.proxy.type", "NONE");
+            if (proxyType.equalsIgnoreCase("NONE") || proxyType.equalsIgnoreCase("DIRECT")) {
+                proxy = Proxy.NO_PROXY;
+            } else {
+                proxy = new Proxy(Proxy.Type.valueOf(proxyType),
+                                  proxySocketAddress
+                                 );
+            }
             connection = (HttpURLConnection)u.openConnection(proxy);
             connection.connect();
         } catch (Exception e) {
@@ -331,7 +357,7 @@ class DownloaderThread extends Thread {
                             String newFilename = downloader.storeTo + File.separator + String.format(downloader.filenameFormat, new Date(), md5sum, extension);
                             if (file.renameTo(new File(newFilename))) {
                                 logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilename});
-                                downloader.addFile(md5sum, message.from, url);
+                                downloader.addFile(md5sum, message.from, url, tags);
                             } else {
                                 throw new Exception( "Can't rename file '" + tmpFilename + "' to '" + newFilename + "'");
                             }
