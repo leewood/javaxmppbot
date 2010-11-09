@@ -123,7 +123,7 @@ public class Downloader extends Module {
         return result;
     }
 
-    protected String[] searchDup(String md5sum) {
+    protected synchronized String[] searchDup(String md5sum) {
         String time = null;
         String from = null;
         String url = null;
@@ -144,7 +144,7 @@ public class Downloader extends Module {
         }
     }
 
-    protected void addFile(String md5sum, String from, String url, ArrayList<String> tags) {
+    protected synchronized void addFile(String md5sum, String from, String url, ArrayList<String> tags) {
         try {
             connectToDB();
             addRecord.setString(1, md5sum);
