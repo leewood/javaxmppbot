@@ -144,12 +144,13 @@ public class Downloader extends Module {
         }
     }
 
-    protected synchronized void addFile(String md5sum, String from, String url, ArrayList<String> tags) {
+    protected synchronized void addFile(String md5sum, String from, String url, String file, ArrayList<String> tags) {
         try {
             connectToDB();
             addRecord.setString(1, md5sum);
             addRecord.setString(2, from);
             addRecord.setString(3, url);
+            addRecord.setString(4, file);
             addRecord.executeUpdate();
             for (int i = 0; i < tags.size(); i++) {
                 addTag.setString(1, md5sum);
@@ -186,11 +187,11 @@ public class Downloader extends Module {
         }
         // Prepare JDBC statements and create table if it doesn't exist
         try {
-            PreparedStatement createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255))"));
+            PreparedStatement createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255), `file` TEXT(255))"));
             createTable.execute();
             createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_tags` (`md5` TEXT(32), `tag` TEXT(20))"));
             createTable.execute();
-            addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`) VALUES (?, strftime('%s','now'), ?, ?)"));
+            addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
             addTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
             searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
         } catch (Exception e) {
@@ -354,12 +355,13 @@ class DownloaderThread extends Thread {
                             bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2]));
                         } else {
                             // This isn't dupliocate, save it
-                            String newFilename = downloader.storeTo + File.separator + String.format(downloader.filenameFormat, new Date(), md5sum, extension);
-                            if (file.renameTo(new File(newFilename))) {
-                                logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilename});
-                                downloader.addFile(md5sum, message.from, url, tags);
+                            String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
+                            String newFilepath = downloader.storeTo + File.separator + newFilename;
+                            if (file.renameTo(new File(newFilepath))) {
+                                logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
+                                downloader.addFile(md5sum, message.from, url, newFilename, tags);
                             } else {
-                                throw new Exception( "Can't rename file '" + tmpFilename + "' to '" + newFilename + "'");
+                                throw new Exception( "Can't rename file '" + tmpFilename + "' to '" + newFilepath + "'");
                             }
                             file = null;
 
