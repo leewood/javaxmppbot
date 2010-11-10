@@ -26,6 +26,8 @@ package com.devti.JavaXMPPBot.modules;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.logging.Logger;
@@ -49,6 +51,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
+import javax.imageio.ImageIO;
 
 public class Downloader extends Module {
 
@@ -56,6 +60,8 @@ public class Downloader extends Module {
 
     private Pattern urlPattern;
     private Pattern tagPattern;
+    private byte signatureBaseSize;
+    private int signatureMaxDistance;
 
     private Connection connection;
     private String dbUrl;
@@ -67,8 +73,10 @@ public class Downloader extends Module {
     private PreparedStatement addRecord;
     private PreparedStatement addTag;
     private PreparedStatement searchRecord;
+    private PreparedStatement addSignature;
 
     private HashMap<String, String> extensionsMap;
+    private HashMap<String, byte[]> imageSignatures;
 
     protected final String storeTo;
     protected final String filenameFormat;
@@ -99,6 +107,11 @@ public class Downloader extends Module {
                 }
             }
         }
+        signatureBaseSize = new Byte(bot.getProperty("modules.Downloader.signature-base-size", "10"));
+        byte minMatchPercent = new Byte(bot.getProperty("modules.Downloader.signature-min-match-percent", "90"));
+        int maxImageDistance = (int)Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
+        signatureMaxDistance = (int)Math.round(maxImageDistance - maxImageDistance * minMatchPercent / 100);
+        imageSignatures = new HashMap<String, byte[]>();
 
         // Create storage directorty if it doesn't exist
         File dir = new File(storeTo);
@@ -113,6 +126,73 @@ public class Downloader extends Module {
 
         // Connect to DB
         connectToDB();
+
+        // Load signatures
+        try {
+            PreparedStatement getSignatures = connection.prepareStatement(bot.getProperty("modules.Downloader.select-signature", "SELECT `md5`, `signature` FROM `javaxmppbot_downloader_signatures`"));
+            ResultSet rs = getSignatures.executeQuery();
+            while (rs.next()) {
+                imageSignatures.put(rs.getString(1), rs.getBytes(2));
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't load image signatures from the DB.", e);
+        }
+    }
+
+    public byte[] createImageSignature(File file) {
+        int[] pixel = new int[3];
+        byte[] signature = new byte[signatureBaseSize * signatureBaseSize * 3];
+        try {
+            BufferedImage original = ImageIO.read(file);
+            BufferedImage resized = new BufferedImage(signatureBaseSize, signatureBaseSize, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = resized.createGraphics();
+            g.drawImage(original, 0, 0, signatureBaseSize, signatureBaseSize, null);
+            int c = 0;
+            for (int i = 0; i < signatureBaseSize; i++) {
+                for (int j = 0; j < signatureBaseSize; j++) {
+                    pixel = resized.getData().getPixel(i, j, pixel);
+                    signature[c++] = (byte)pixel[0];
+                    signature[c++] = (byte)pixel[1];
+                    signature[c++] = (byte)pixel[2];
+                }
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't create signature for file '" + file.toString() + "'", e);
+        }
+        return signature;
+    }
+    
+    public final synchronized void addImageSignature(String md5sum, byte[] signature) {
+        imageSignatures.put(md5sum, signature);
+        try {
+            addSignature.setString(1, md5sum);
+            addSignature.setBytes(2, signature);
+            addSignature.executeUpdate();
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "An error has been occurred during adding signature of '" + md5sum + "' into the DB", e);
+        }
+    }
+
+    public String searchDupBySignature(byte[] signature) {
+        Iterator sig = imageSignatures.keySet().iterator();
+        while (sig.hasNext()) {
+            String md5sum = (String)sig.next();
+            byte[] signature2 = imageSignatures.get(md5sum);
+            int d = 0;
+            int c = 0;
+            for (int i = 0; i < signatureBaseSize; i++) {
+                for (int j = 0; j < signatureBaseSize; j++) {
+                    int dr = signature[c] - signature2[c++];
+                    int dg = signature[c] - signature[c++];
+                    int db = signature[c] - signature[c++];
+                    d += Math.ceil(Math.sqrt(dr * dr + dg * dg + db * db));
+                }
+            }
+            if (d <= signatureMaxDistance) {
+                return md5sum;
+            }
+        }
+        return null;
     }
 
     public String getExtension(String type) {
@@ -191,9 +271,12 @@ public class Downloader extends Module {
             createTable.execute();
             createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_tags` (`md5` TEXT(32), `tag` TEXT(20))"));
             createTable.execute();
+            createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-signatures", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_signatures` (`md5` TEXT(32), `signature` BLOB)"));
+            createTable.execute();
             addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
             addTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
             searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
+            addSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)"));
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't prepare JDBC statements", e);
         }
@@ -251,6 +334,7 @@ class DownloaderThread extends Thread {
     private ArrayList<String> tags;
     private Message message;
     private ArrayList<String> acceptableTypes;
+    private boolean compareAsImages;
 
     public DownloaderThread(Bot bot, Downloader downloader, String url, ArrayList<String> tags, Message message) {
         this.bot = bot;
@@ -265,6 +349,8 @@ class DownloaderThread extends Thread {
         } else {
             acceptableTypes = new ArrayList<String>(Arrays.asList(bot.getProperty("modules.Downloader.accept").split(";")));
         }
+
+        compareAsImages = bot.getProperty("modules.Downloader.compare-as-images", "yes").equalsIgnoreCase("yes");
     }
 
     public static int bytesToInt(byte[] b) {
@@ -347,24 +433,42 @@ class DownloaderThread extends Thread {
                         String extension = downloader.getExtension(realFileType);
 
                         String md5sum = HexCodec.bytesToHex(messageDigest.digest());
-                        logger.log(Level.INFO, "OK! File {0} saved temporary as {1} MD5={2}.", new Object[]{url, tmpFilename, md5sum.toString()});
+                        logger.log(Level.INFO, "OK! File {0} saved temporary as {1} MD5={2}.", new Object[]{url, tmpFilename, md5sum});
                         String[] dup = downloader.searchDup(md5sum);
                         if ((dup.length == 3) && (dup[0] != null) && (dup[1] != null) && (dup[2] != null)) {
                             // This is duplicate, so send reply and delete temporary file
                             logger.log(Level.INFO, "File {0} ({1}) is a duplicate.", new Object[]{url, md5sum.toString()});
                             bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2]));
                         } else {
-                            // This isn't dupliocate, save it
-                            String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
-                            String newFilepath = downloader.storeTo + File.separator + newFilename;
-                            if (file.renameTo(new File(newFilepath))) {
-                                logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
-                                downloader.addFile(md5sum, message.from, url, newFilename, tags);
-                            } else {
-                                throw new Exception( "Can't rename file '" + tmpFilename + "' to '" + newFilepath + "'");
+                            // Try to compare with another images
+                            boolean isntDuplicate = true;
+                            byte[] signature;
+                            if (compareAsImages) {
+                                signature = downloader.createImageSignature(file);
+                                String sigDup = downloader.searchDupBySignature(signature);
+                                if (sigDup != null) {
+                                    // This is duplicate, so send reply
+                                    dup = downloader.searchDup(sigDup);
+                                    logger.log(Level.INFO, "File {0} ({1}) is a modified duplicate of {2}.", new Object[]{url, md5sum, sigDup});
+                                    bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2]));
+                                    isntDuplicate = false;
+                                } else {
+                                    downloader.addImageSignature(md5sum, signature);
+                                }
                             }
-                            file = null;
 
+                            // This isn't duplicate, save it
+                            if (isntDuplicate) {
+                                String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
+                                String newFilepath = downloader.storeTo + File.separator + newFilename;
+                                if (file.renameTo(new File(newFilepath))) {
+                                    logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
+                                    downloader.addFile(md5sum, message.from, url, newFilename, tags);
+                                } else {
+                                    throw new Exception( "Can't rename file '" + tmpFilename + "' to '" + newFilepath + "'");
+                                }
+                                file = null;
+                            }
                         }
                     } catch (Exception e) {
                         logger.log(Level.WARNING, "An error occurred during downloading file '" + url + "'", e);
