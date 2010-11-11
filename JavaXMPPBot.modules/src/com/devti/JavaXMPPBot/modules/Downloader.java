@@ -108,7 +108,7 @@ public class Downloader extends Module {
             }
         }
         signatureBaseSize = new Byte(bot.getProperty("modules.Downloader.signature-base-size", "10"));
-        byte minMatchPercent = new Byte(bot.getProperty("modules.Downloader.signature-min-match-percent", "90"));
+        byte minMatchPercent = new Byte(bot.getProperty("modules.Downloader.signature-min-match-percent", "99"));
         int maxImageDistance = (int)Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
         signatureMaxDistance = (int)Math.round(maxImageDistance - maxImageDistance * minMatchPercent / 100);
         imageSignatures = new HashMap<String, byte[]>();
