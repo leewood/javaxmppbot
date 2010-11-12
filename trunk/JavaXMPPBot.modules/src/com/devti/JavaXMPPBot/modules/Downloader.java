@@ -96,7 +96,7 @@ public class Downloader extends Module {
         tagPattern = Pattern.compile(bot.getProperty("modules.Downloader.tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]"), Pattern.CASE_INSENSITIVE);
         storeTo = bot.getProperty("modules.Downloader.store-to",  System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
         filenameFormat = bot.getProperty("modules.Downloader.filename-format",  "%ts_%s%s");
-        dupReplyFormat = bot.getProperty("modules.Downloader.dup-reply", "%s is duplicate originally posted at %s by %s (%s)");
+        dupReplyFormat = bot.getProperty("modules.Downloader.dup-reply", "%s is an duplicate of %s (%s) posted at %s by %s");
         extensionsMap =  new HashMap<String, String>();
         if (bot.getProperty("modules.Downloader.extensions-map") != null) {
             String[] a = bot.getProperty("modules.Downloader.extensions-map").split(";");
@@ -204,24 +204,17 @@ public class Downloader extends Module {
     }
 
     protected synchronized String[] searchDup(String md5sum) {
-        String time = null;
-        String from = null;
-        String url = null;
         try {
             connectToDB();
             searchRecord.setString(1, md5sum);
             ResultSet rs = searchRecord.executeQuery();
             if (rs.next()) {
-                time = rs.getString(1);
-                from = rs.getString(2);
-                url = rs.getString(3);
+                return new String[]{rs.getString(4), rs.getString(3), rs.getString(1), rs.getString(2)};
             }
         } catch (Exception e) {
             logger.log(Level.WARNING, "An error occurred during searching md5sum '" + md5sum.toString() + "' in the DB", e);
-        } finally {
-            String[] result = {time, from, url};
-            return result;
         }
+        return null;
     }
 
     protected synchronized void addFile(String md5sum, String from, String url, String file, ArrayList<String> tags) {
@@ -275,7 +268,7 @@ public class Downloader extends Module {
             createTable.execute();
             addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
             addTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
-            searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
+            searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url`, `file` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
             addSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)"));
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't prepare JDBC statements", e);
@@ -435,10 +428,10 @@ class DownloaderThread extends Thread {
                         String md5sum = HexCodec.bytesToHex(messageDigest.digest());
                         logger.log(Level.INFO, "OK! File {0} saved temporary as {1} MD5={2}.", new Object[]{url, tmpFilename, md5sum});
                         String[] dup = downloader.searchDup(md5sum);
-                        if ((dup.length == 3) && (dup[0] != null) && (dup[1] != null) && (dup[2] != null)) {
+                        if (dup != null) {
                             // This is duplicate, so send reply and delete temporary file
                             logger.log(Level.INFO, "File {0} ({1}) is a duplicate.", new Object[]{url, md5sum.toString()});
-                            bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2]));
+                            bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], dup[3]));
                         } else {
                             // Try to compare with another images
                             boolean isntDuplicate = true;
@@ -450,7 +443,7 @@ class DownloaderThread extends Thread {
                                     // This is duplicate, so send reply
                                     dup = downloader.searchDup(sigDup);
                                     logger.log(Level.INFO, "File {0} ({1}) is a modified duplicate of {2}.", new Object[]{url, md5sum, sigDup});
-                                    bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2]));
+                                    bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], dup[3]));
                                     isntDuplicate = false;
                                 } else {
                                     downloader.addImageSignature(md5sum, signature);
