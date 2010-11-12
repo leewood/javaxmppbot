@@ -182,9 +182,9 @@ public class Downloader extends Module {
             int c = 0;
             for (int i = 0; i < signatureBaseSize; i++) {
                 for (int j = 0; j < signatureBaseSize; j++) {
-                    int dr = signature[c] - signature2[c++];
-                    int dg = signature[c] - signature[c++];
-                    int db = signature[c] - signature[c++];
+                    int dr = (signature[c] & 0xff) - (signature2[c++] & 0xff);
+                    int dg = (signature[c] & 0xff) - (signature2[c++] & 0xff);
+                    int db = (signature[c] & 0xff) - (signature2[c++] & 0xff);
                     d += Math.ceil(Math.sqrt(dr * dr + dg * dg + db * db));
                 }
             }
