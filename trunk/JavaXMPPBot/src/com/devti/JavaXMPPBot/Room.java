@@ -23,7 +23,7 @@
 
 package com.devti.JavaXMPPBot;
 
-import org.jivesoftware.smack.XMPPConnection;
+import org.jivesoftware.smack.Connection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smackx.muc.DiscussionHistory;
 import org.jivesoftware.smackx.muc.MultiUserChat;
@@ -32,7 +32,7 @@ public class Room extends MultiUserChat {
 
     private boolean enabled;
 
-    public Room(XMPPConnection connection, String room) {
+    public Room(Connection connection, String room) {
         super(connection, room);
         enabled = false;
     }
