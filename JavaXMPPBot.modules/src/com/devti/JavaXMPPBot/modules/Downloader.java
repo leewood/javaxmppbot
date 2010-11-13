@@ -173,7 +173,7 @@ public class Downloader extends Module {
         }
     }
 
-    public String searchDupBySignature(byte[] signature) {
+    public synchronized String searchDupBySignature(byte[] signature) {
         Iterator sig = imageSignatures.keySet().iterator();
         while (sig.hasNext()) {
             String md5sum = (String)sig.next();
