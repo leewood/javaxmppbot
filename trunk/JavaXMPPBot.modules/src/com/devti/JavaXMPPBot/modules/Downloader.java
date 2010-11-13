@@ -96,7 +96,7 @@ public class Downloader extends Module {
         tagPattern = Pattern.compile(bot.getProperty("modules.Downloader.tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]"), Pattern.CASE_INSENSITIVE);
         storeTo = bot.getProperty("modules.Downloader.store-to",  System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
         filenameFormat = bot.getProperty("modules.Downloader.filename-format",  "%ts_%s%s");
-        dupReplyFormat = bot.getProperty("modules.Downloader.dup-reply", "%s is an duplicate of %s (%s) posted at %s by %s");
+        dupReplyFormat = bot.getProperty("modules.Downloader.dup-reply", "%s is a duplicate of %s (%s) posted at %s by %s");
         extensionsMap =  new HashMap<String, String>();
         if (bot.getProperty("modules.Downloader.extensions-map") != null) {
             String[] a = bot.getProperty("modules.Downloader.extensions-map").split(";");
@@ -235,7 +235,7 @@ public class Downloader extends Module {
         }
     }
 
-    private void connectToDB() {
+    private synchronized void connectToDB() {
         // Return if connection is opened already
         try {
             if (connection != null) {
