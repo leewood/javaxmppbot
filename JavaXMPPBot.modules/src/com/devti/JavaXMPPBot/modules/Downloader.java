@@ -431,7 +431,14 @@ class DownloaderThread extends Thread {
                         if (dup != null) {
                             // This is duplicate, so send reply and delete temporary file
                             logger.log(Level.INFO, "File {0} ({1}) is a duplicate.", new Object[]{url, md5sum.toString()});
-                            bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], dup[3]));
+                            String from = dup[3];
+                            if (message.type == Message.Type.groupchat) {
+                                if (from.startsWith(message.room + "/")) {
+                                    from = from.substring((message.room + "/").length());
+                                }
+
+                            }
+                            bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
                         } else {
                             // Try to compare with another images
                             boolean isntDuplicate = true;
@@ -443,7 +450,14 @@ class DownloaderThread extends Thread {
                                     // This is duplicate, so send reply
                                     dup = downloader.searchDup(sigDup);
                                     logger.log(Level.INFO, "File {0} ({1}) is a modified duplicate of {2}.", new Object[]{url, md5sum, sigDup});
-                                    bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], dup[3]));
+                                    String from = dup[3];
+                                    if (message.type == Message.Type.groupchat) {
+                                        if (from.startsWith(message.room + "/")) {
+                                            from = from.substring((message.room + "/").length());
+                                        }
+
+                                    }
+                                    bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
                                     isntDuplicate = false;
                                 } else {
                                     downloader.addImageSignature(md5sum, signature);
