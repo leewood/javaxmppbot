@@ -46,6 +46,12 @@ public interface Bot {
     public String[] getModules();
     public Module getModule(String name);
 
+    public void registerCommand(Command command) throws Exception;
+    public Command getCommand(String command);
+    
+    public void registerMessageProcessor(Module module) throws Exception;
+    public Module[] getMessageProcessors();
+
     public boolean isOwner(String jid);
     public boolean isIgnored(String jid);
 

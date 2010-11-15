@@ -85,14 +85,25 @@ public class MessageProcessor extends Thread {
                     message.nick = message.from.replaceFirst("/.*", "");
                     message.isForMe = true;
                 }
-                // Ignore self messages
+                // Ignore self messages and process message through all modules
                 if (!((message.type == Message.Type.groupchat) && message.nick.equals(bot.getNickname(message.room)))) {
-                    String[] modules = bot.getModules();
-                    for (int i = 0; i < modules.length; i++) {
-                        Module module = bot.getModule(modules[i]);
-                        // Stop message processing if processMessage() of a module returned true
-                        if (module.processMessage(message)) {
-                            break;
+                    // Process through all registred message processors if it isn't command
+                    if (message.command == null) {
+                        Module[] modules = bot.getMessageProcessors();
+                        for (int i = 0; i < modules.length; i++) {
+                            modules[i].processMessage(message);
+                        }
+                    // Search specified command in registred commands
+                    } else {
+                        Command command = bot.getCommand(message.command);
+                        if (command == null) {
+                            bot.sendReply(message, "Command '" + message.command + "' isn't found.");
+                        } else {
+                            if (!command.ownerOnly || bot.isOwner(message.from)) {
+                                command.module.processCommand(message);
+                            } else {
+                                bot.sendReply(message, "This command isn't allowed to you.");
+                            }
                         }
                     }
                 }

@@ -37,6 +37,9 @@ import java.util.List;
 import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 class ConnectionListener implements org.jivesoftware.smack.ConnectionListener {
 
@@ -82,6 +85,8 @@ public final class XMPPBot extends Thread implements Bot {
     private XMPPConnection connection;
     private ConnectionConfiguration connectionConfiguration;
     private List<Module> modules;
+    private final Map<String, Command> commands;
+    private final List<Module> messageProcessors;
     private List<Room> rooms;
     private String[] owners;
     private String[] autojoinRooms;
@@ -96,6 +101,8 @@ public final class XMPPBot extends Thread implements Bot {
         roomsShouldBeReconnected = false;
         config = configFile;
         modules = new ArrayList<Module>();
+        commands = Collections.synchronizedMap(new HashMap<String, Command>());
+        messageProcessors = Collections.synchronizedList(new ArrayList<Module>());
         rooms = new ArrayList<Room>();
         properties = new Properties();
         ignoreList = new ArrayList<String>();
@@ -338,6 +345,44 @@ public final class XMPPBot extends Thread implements Bot {
             }
         }
         return null;
+    }
+
+    @Override
+    public void registerCommand(Command command) throws Exception {
+        synchronized (commands) {
+            if (commands.containsKey(command.command)) {
+                throw new Exception("Command '" + command.command + "' is registred already for module '" + command.module.getName() + "'.");
+            } else {
+                commands.put(command.command, command);
+            }
+        }
+    }
+
+    @Override
+    public Command getCommand(String command) {
+        synchronized (commands) {
+            return commands.get(command);
+        }
+    }
+
+    @Override
+    public void registerMessageProcessor(Module module) throws Exception {
+        synchronized (messageProcessors) {
+            if (messageProcessors.contains(module)) {
+                throw new Exception("Module '" + module.getName() + "' is registred already as message processor.");
+            } else {
+                messageProcessors.add(module);
+            }
+        }
+    }
+
+    @Override
+    public Module[] getMessageProcessors() {
+        Module[] mp;
+        synchronized (messageProcessors) {
+            mp = messageProcessors.toArray(new Module[messageProcessors.size()]);
+        }
+        return mp;
     }
 
     @Override

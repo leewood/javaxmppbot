@@ -26,6 +26,7 @@ package com.devti.JavaXMPPBot.modules;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
+import com.devti.JavaXMPPBot.Command;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
@@ -35,63 +36,47 @@ public class Control extends Module {
 
     public Control(Bot bot) {
         super(bot);
+        try {
+            // Register commands provided by this module
+            bot.registerCommand(new Command("quit", "shutdown this bot", true, this));
+            bot.registerCommand(new Command("reload", "reload bot configuration from file", true, this));
+            bot.registerCommand(new Command("join", "join to the room(conference) specified as argument", true, this));
+            bot.registerCommand(new Command("leave", "leave to the room(conference) specified as argument", true, this));
+            bot.registerCommand(new Command("rooms", "list active rooms(conferences) specified as argument", true, this));
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register a command.", e);
+        }
     }
 
     @Override
-    public boolean processMessage(Message msg) {
+    public void processCommand(Message msg) {
         // Disconnect and close this bot
         if (msg.command.equals("quit")) {
-            if (bot.isOwner(msg.from)) {
                 bot.disconnect();
-                return true;
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
-            }
         // Reload bot config
         } else if (msg.command.equals("reload")) {
-            if (bot.isOwner(msg.from)) {
-                try {
-                    bot.reloadConfig();
-                    bot.sendReply(msg, "Bot config has been reloaded.");
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "An error occurred during config reloading", e);
-                    bot.sendReply(msg, "An error has occurred during config reloading, examine log for more information.");
-                }
-                return true;
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
+            try {
+                bot.reloadConfig();
+                bot.sendReply(msg, "Bot config has been reloaded.");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "An error occurred during config reloading", e);
+                bot.sendReply(msg, "An error has been occurred during config reloading, examine log for more information.");
             }
         // Join to a chat room
         } else if (msg.command.equals("join")) {
-            if (bot.isOwner(msg.from)) {
-                bot.join(msg.commandArgs.trim());
-                return true;
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
-            }
+            bot.join(msg.commandArgs.trim());
         // Leave a chat room
         } else if (msg.command.equals("leave")) {
-            if (bot.isOwner(msg.from)) {
-                bot.leave(msg.commandArgs.trim());
-                return true;
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
-            }
+            bot.leave(msg.commandArgs.trim());
         // List active rooms
         } else if (msg.command.equals("rooms")) {
-            if (bot.isOwner(msg.from)) {
-                String[] rooms = bot.getRooms();
-                String response = "";
-                for (int i = 0; i < rooms.length; i++) {
-                    response += rooms[i] + "\n";
-                }
-                bot.sendReply(msg, response);
-                return true;
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
+            String[] rooms = bot.getRooms();
+            String response = "";
+            for (int i = 0; i < rooms.length; i++) {
+                response += rooms[i] + "\n";
             }
+            bot.sendReply(msg, response);
         }
-        return super.processMessage(msg);
     }
 
 }
