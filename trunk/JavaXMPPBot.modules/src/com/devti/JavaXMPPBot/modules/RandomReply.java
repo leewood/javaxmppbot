@@ -26,6 +26,7 @@ package com.devti.JavaXMPPBot.modules;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
+import com.devti.JavaXMPPBot.Command;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -69,6 +70,21 @@ public class RandomReply extends Module {
 
         // Connect to DB
         connectToDB();
+
+        // Register commands provided by this module
+        try {
+            bot.registerCommand(new Command("reply_add", "add auto reply phrase", true, this));
+            bot.registerCommand(new Command("reply_delete", "delete specified phrase from auto replies", true, this));
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register a command.", e);
+        }
+
+        // Register message processor for this module
+        try {
+            bot.registerMessageProcessor(this);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register message processor.", e);
+        }
     }
 
     private void connectToDB() {
@@ -108,57 +124,50 @@ public class RandomReply extends Module {
     }
 
     @Override
+    public void processCommand(Message msg) {
+        if (msg.command.equals("reply_add")) {
+            connectToDB();
+            try {
+                insert.setString(1, msg.commandArgs);
+                insert.addBatch();
+                connection.setAutoCommit(false);
+                insert.executeBatch();
+                connection.setAutoCommit(true);
+
+                bot.sendReply(msg, "New random reply has been added.");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+            }
+        } else if (msg.command.equals("reply_delete")) {
+            connectToDB();
+            try {
+                delete.setString(1, msg.commandArgs);
+                delete.addBatch();
+                connection.setAutoCommit(false);
+                delete.executeBatch();
+                connection.setAutoCommit(true);
+
+                bot.sendReply(msg, "Random reply has been deleted.");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+            }
+        }
+    }
+
+    @Override
     public boolean processMessage(Message msg) {
-        if (msg.command.equalsIgnoreCase("reply_add")) {
-            if (bot.isOwner(msg.from)) {
+        if ((msg.type == Message.Type.normal) || (msg.type == Message.Type.chat) || (msg.type == Message.Type.groupchat)) {
+            if ((msg.type != Message.Type.groupchat) || msg.body.startsWith(bot.getNickname(msg.room))) {
                 connectToDB();
+                String reply;
                 try {
-                    insert.setString(1, msg.commandArgs);
-                    insert.addBatch();
-                    connection.setAutoCommit(false);
-                    insert.executeBatch();
-                    connection.setAutoCommit(true);
-
-                    bot.sendReply(msg, "New random reply has been added.");
-                    return true;
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "Can't execute JDBC statement", e);
-                }
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
-            }
-        } else if (msg.command.equalsIgnoreCase("reply_delete")) {
-            if (bot.isOwner(msg.from)) {
-                connectToDB();
-                try {
-                    delete.setString(1, msg.commandArgs);
-                    delete.addBatch();
-                    connection.setAutoCommit(false);
-                    delete.executeBatch();
-                    connection.setAutoCommit(true);
-
-                    bot.sendReply(msg, "Random reply has been deleted.");
-                    return true;
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "Can't execute JDBC statement", e);
-                }
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
-            }
-        } else if (msg.command.equals("")) {
-            if ((msg.type == Message.Type.normal) || (msg.type == Message.Type.chat) || (msg.type == Message.Type.groupchat)) {
-                if ((msg.type != Message.Type.groupchat) || msg.body.startsWith(bot.getNickname(msg.room))) {
-                    connectToDB();
-                    String reply;
-                    try {
-                        ResultSet rs = select.executeQuery();
-                        reply = rs.getString(1);
-                        if (reply != null) {
-                            bot.sendReply(msg, reply);
-                        }
-                    } catch (Exception e) {
-                        logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                    ResultSet rs = select.executeQuery();
+                    reply = rs.getString(1);
+                    if (reply != null) {
+                        bot.sendReply(msg, reply);
                     }
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Can't execute JDBC statement", e);
                 }
             }
         }

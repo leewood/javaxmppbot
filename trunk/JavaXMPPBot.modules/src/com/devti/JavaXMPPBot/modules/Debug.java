@@ -26,18 +26,28 @@ package com.devti.JavaXMPPBot.modules;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
+import com.devti.JavaXMPPBot.Command;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Debug extends Module {
 
+    private static final Logger logger = Logger.getLogger(Debug.class.getName());
+
     public Debug(Bot bot) {
         super(bot);
+        try {
+            bot.registerCommand(new Command("threads", "list threads of this bot", true, this));
+            bot.registerCommand(new Command("runtime", "show runtime information", true, this));
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register a command.", e);
+        }
     }
 
     @Override
-    public boolean processMessage(Message msg) {
+    public void processCommand(Message msg) {
         // List active threads
         if (msg.command.equals("threads")) {
-            if (bot.isOwner(msg.from)) {
                 Thread[] threads = new Thread[Thread.activeCount()];
                 int threadsCount = Thread.enumerate(threads);
                 String message = new String();
@@ -45,26 +55,19 @@ public class Debug extends Module {
                     message += (i + 1) + ") " + threads[i].getName() + " [" + threads[i].getState().toString() + "]\n";
                 }
                 bot.sendReply(msg, message);
-                return true;
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
-            }
         }
         // Show runtime information
         if (msg.command.equals("runtime")) {
-            if (bot.isOwner(msg.from)) {
                 Runtime runtime = Runtime.getRuntime();
-                String message = new String();
-                message += "Available processors: " + runtime.availableProcessors() + "\n";
-                message += "Available memory: " + runtime.freeMemory() + " bytes\n";
-                message += "Total memory: " + runtime.totalMemory() + " bytes\n";
-                message += "Max memory: " + runtime.maxMemory() + " bytes\n";
+                String message = String.format(
+                    "Available processors: %d\nAvailable memory: %,d bytes\nTotal memory: %,d bytes\nMax memory: %,d bytes",
+                    runtime.availableProcessors(),
+                    runtime.freeMemory(),
+                    runtime.totalMemory(),
+                    runtime.maxMemory()
+                );
                 bot.sendReply(msg, message);
-                return true;
-            } else {
-                bot.sendReply(msg, "This command isn't allowed to you.");
-            }
         }
-        return false;
     }
+
 }

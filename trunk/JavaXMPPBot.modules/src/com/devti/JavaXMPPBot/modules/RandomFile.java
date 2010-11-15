@@ -53,6 +53,12 @@ public class RandomFile extends Module {
         } else {
             dir = null;
         }
+
+        try {
+            bot.registerMessageProcessor(this);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register message processor.", e);
+        }
     }
 
     @Override

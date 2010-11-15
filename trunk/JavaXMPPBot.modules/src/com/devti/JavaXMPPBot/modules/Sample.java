@@ -36,6 +36,12 @@ public class Sample extends Module {
 
     public Sample(Bot bot) {
         super(bot);
+        // Register message processor for this module
+        try {
+            bot.registerMessageProcessor(this);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register message processor.", e);
+        }
     }
 
     @Override

@@ -137,6 +137,12 @@ public class Downloader extends Module {
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't load image signatures from the DB.", e);
         }
+        
+        try {
+            bot.registerMessageProcessor(this);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register message processor.", e);
+        }
     }
 
     public byte[] createImageSignature(File file) {

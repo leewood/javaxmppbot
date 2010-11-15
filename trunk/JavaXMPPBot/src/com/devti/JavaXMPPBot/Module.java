@@ -31,14 +31,16 @@ public class Module extends Thread {
     private static final Logger logger = Logger.getLogger(Module.class.getName());
     private boolean enabled;
     protected Bot bot;
+    protected Command[] commands;
 
     public Module(Bot bot) {
         this.bot = bot;
         this.setName(this.getClass().getName() + "(" + bot.getConfigPath() + ")");
+        commands = new Command[0];
     }
 
-    public String getCommands(boolean forOwner) {
-        return "";
+    public Command[] getCommands() {
+        return commands;
     }
 
     public String getHelp(String command) {
@@ -58,6 +60,9 @@ public class Module extends Thread {
 
     public boolean isEnabled() {
         return this.enabled;
+    }
+
+    public void processCommand(Message msg) {
     }
 
     public boolean processMessage(Message msg) {

@@ -23,32 +23,18 @@
 
 package com.devti.JavaXMPPBot;
 
-public class Message {
+public class Command {
 
-    public enum Type {
-        chat, error, groupchat, headline, normal;
-    }
+    public final String command;
+    public final String description;
+    public final boolean ownerOnly;
+    public final Module module;
 
-    public String from;
-    public String to;
-    public String body;
-    public String command;
-    public String commandArgs;
-    public Type type;
-    public String room;
-    public String nick;
-    public boolean isForMe;
-
-    public Message(String from, String to, String body) {
-        this.from = from;
-        this.to = to;
-        this.body = body;
-        command = null;
-        commandArgs = null;
-        type = Type.normal;
-        room = null;
-        nick = null;
-        isForMe = false;
+    public Command(String command, String description, boolean ownerOnly, Module module) {
+        this.command = command;
+        this.description = description;
+        this.ownerOnly = ownerOnly;
+        this.module = module;
     }
 
 }
