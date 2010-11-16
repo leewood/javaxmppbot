@@ -38,38 +38,40 @@ import java.io.File;
 public class RandomReply extends Module {
 
     private static final Logger logger = Logger.getLogger(RandomReply.class.getName());
+
     private Connection connection;
     private PreparedStatement create;
     private PreparedStatement insert;
     private PreparedStatement select;
     private PreparedStatement delete;
-    private String url;
-    private String driver;
-    private Integer timeout;
-    private Integer retries;
-    private String username;
-    private String password;
+
+    private final String dbUrl;
+    private final String dbDriver;
+    private final String dbUsername;
+    private final String dbPassword;
 
     public RandomReply(Bot bot) {
         super(bot);
 
         // Get properties
-        driver = bot.getProperty("modules.RandomReply.driver", "org.sqlite.JDBC");
-        url = bot.getProperty("modules.RandomReply.url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "random_reply.db");
-        timeout = new Integer(bot.getProperty("modules.RandomReply.timeout", "5"));
-        retries = new Integer(bot.getProperty("modules.RandomReply.retries", "5"));
-        username = bot.getProperty("modules.RandomReply.username");
-        password = bot.getProperty("modules.RandomReply.password");
+        dbDriver = bot.getProperty("modules.RandomReply.db-driver", "org.sqlite.JDBC");
+        dbUrl = bot.getProperty("modules.RandomReply.db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "random_reply.db");
+        dbUsername = bot.getProperty("modules.RandomReply.db-username");
+        dbPassword = bot.getProperty("modules.RandomReply.db-password");
 
         // Initialize JDBC driver
         try {
-            Class.forName(driver).newInstance();
+            Class.forName(dbDriver).newInstance();
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't initialize JDBC driver '" + driver + "'", e);
+            logger.log(Level.WARNING, "Can't initialize JDBC driver '" + dbDriver + "'", e);
         }
 
         // Connect to DB
-        connectToDB();
+        try {
+            connectToDB();
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't prepare DB connection.", e);
+        }
 
         // Register commands provided by this module
         try {
@@ -87,66 +89,41 @@ public class RandomReply extends Module {
         }
     }
 
-    private void connectToDB() {
+    private void connectToDB() throws Exception {
         // Return if connection is opened already
-        try {
-            if (connection != null) {
-                return;
-            }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't check availability of JDBC connection", e);
+        if ((connection != null) && !connection.isClosed() && connection.isValid(5)) {
+            return;
         }
         // Connect
-        for (int i = 0; i < retries; i++) {
-            try {
-                connection = DriverManager.getConnection(url, username, password);
-                connection.setAutoCommit(false);
-                break;
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't open JDBC connection to '" + url + "'", e);
-                try {
-                    sleep(timeout * 1000);
-                } catch (Exception ex) {
-                    logger.log(Level.WARNING, "Can't sleep!", ex);
-                }
-            }
-        }
+        connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        try {
-            create = connection.prepareStatement(bot.getProperty("modules.RandomReply.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_random_reply` (`message` TEXT)"));
-            create.execute();
-            insert = connection.prepareStatement(bot.getProperty("modules.RandomReply.insert", "INSERT INTO `javaxmppbot_random_reply` (`message`) VALUES (?)"));
-            delete = connection.prepareStatement(bot.getProperty("modules.RandomReply.delete", "DELETE FROM `javaxmppbot_random_reply` WHERE `message` = ?"));
-            select = connection.prepareStatement(bot.getProperty("modules.RandomReply.select", "SELECT `message` FROM `javaxmppbot_random_reply` ORDER BY random() LIMIT 1"));
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't prepare JDBC statements", e);
-        }
+        create = connection.prepareStatement(bot.getProperty("modules.RandomReply.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_random_reply` (`message` TEXT)"));
+        create.execute();
+        insert = connection.prepareStatement(bot.getProperty("modules.RandomReply.insert", "INSERT INTO `javaxmppbot_random_reply` (`message`) VALUES (?)"));
+        delete = connection.prepareStatement(bot.getProperty("modules.RandomReply.delete", "DELETE FROM `javaxmppbot_random_reply` WHERE `message` = ?"));
+        select = connection.prepareStatement(bot.getProperty("modules.RandomReply.select", "SELECT `message` FROM `javaxmppbot_random_reply` ORDER BY random() LIMIT 1"));
     }
 
     @Override
     public void processCommand(Message msg) {
         if (msg.command.equals("reply_add")) {
-            connectToDB();
             try {
-                insert.setString(1, msg.commandArgs);
-                insert.addBatch();
-                connection.setAutoCommit(false);
-                insert.executeBatch();
-                connection.setAutoCommit(true);
-
+                synchronized (dbDriver) {
+                    connectToDB();
+                    insert.setString(1, msg.commandArgs);
+                    insert.executeUpdate();
+                }
                 bot.sendReply(msg, "New random reply has been added.");
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Can't execute JDBC statement", e);
             }
         } else if (msg.command.equals("reply_delete")) {
-            connectToDB();
             try {
-                delete.setString(1, msg.commandArgs);
-                delete.addBatch();
-                connection.setAutoCommit(false);
-                delete.executeBatch();
-                connection.setAutoCommit(true);
-
+                synchronized (dbDriver) {
+                    connectToDB();
+                    delete.setString(1, msg.commandArgs);
+                    delete.executeUpdate();
+                }
                 bot.sendReply(msg, "Random reply has been deleted.");
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Can't execute JDBC statement", e);
@@ -158,11 +135,15 @@ public class RandomReply extends Module {
     public boolean processMessage(Message msg) {
         if ((msg.type == Message.Type.normal) || (msg.type == Message.Type.chat) || (msg.type == Message.Type.groupchat)) {
             if ((msg.type != Message.Type.groupchat) || msg.body.startsWith(bot.getNickname(msg.room))) {
-                connectToDB();
-                String reply;
+                String reply = null;
                 try {
-                    ResultSet rs = select.executeQuery();
-                    reply = rs.getString(1);
+                    synchronized (dbDriver) {
+                        connectToDB();
+                        ResultSet rs = select.executeQuery();
+                        if (rs.next()) {
+                            reply = rs.getString(1);
+                        }
+                    }
                     if (reply != null) {
                         bot.sendReply(msg, reply);
                     }
@@ -171,18 +152,6 @@ public class RandomReply extends Module {
                 }
             }
         }
-
         return super.processMessage(msg);
     }
-
-    @Override
-    public void disable() {
-        try {
-            connection.close();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't close JDBC connection", e);
-        }
-        super.disable();
-    }
-
 }
