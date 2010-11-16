@@ -58,25 +58,27 @@ public class Downloader extends Module {
 
     private static final Logger logger = Logger.getLogger(Downloader.class.getName());
 
-    private Pattern urlPattern;
-    private Pattern tagPattern;
-    private byte signatureBaseSize;
-    private int signatureMaxDistance;
+    private final Pattern urlPattern;
+    private final Pattern tagPattern;
+    private final byte signatureBaseSize;
+    private final int signatureMaxDistance;
+
+    private final String dbUrl;
+    private final String dbDriver;
+    private final String dbUsername;
+    private final String dbPassword;
 
     private Connection connection;
-    private String dbUrl;
-    private String dbDriver;
-    private Integer dbTimeout;
-    private Integer dbRetries;
-    private String dbUsername;
-    private String dbPassword;
     private PreparedStatement addRecord;
     private PreparedStatement addTag;
     private PreparedStatement searchRecord;
     private PreparedStatement addSignature;
+    private PreparedStatement deleteRecord;
+    private PreparedStatement deleteTag;
+    private PreparedStatement deleteSignature;
 
-    private HashMap<String, String> extensionsMap;
-    private HashMap<String, byte[]> imageSignatures;
+    private final HashMap<String, String> extensionsMap;
+    private final HashMap<String, byte[]> imageSignatures;
 
     protected final String storeTo;
     protected final String filenameFormat;
@@ -88,8 +90,6 @@ public class Downloader extends Module {
         // Get properties
         dbDriver = bot.getProperty("modules.Downloader.db-driver", "org.sqlite.JDBC");
         dbUrl = bot.getProperty("modules.Downloader.db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "downloader.db");
-        dbTimeout = new Integer(bot.getProperty("modules.Downloader.db-timeout", "5"));
-        dbRetries = new Integer(bot.getProperty("modules.Downloader.db-retries", "5"));
         dbUsername = bot.getProperty("modules.Downloader.db-username");
         dbPassword = bot.getProperty("modules.Downloader.db-password");
         urlPattern = Pattern.compile(bot.getProperty("modules.Downloader.url-pattern", "http://[:a-z0-9%$&_./~()?=+-]+"), Pattern.CASE_INSENSITIVE);
@@ -124,11 +124,9 @@ public class Downloader extends Module {
             logger.log(Level.WARNING, "Can't initialize JDBC driver '" + dbDriver + "'", e);
         }
 
-        // Connect to DB
-        connectToDB();
-
         // Load signatures
         try {
+            connectToDB();
             PreparedStatement getSignatures = connection.prepareStatement(bot.getProperty("modules.Downloader.select-signature", "SELECT `md5`, `signature` FROM `javaxmppbot_downloader_signatures`"));
             ResultSet rs = getSignatures.executeQuery();
             while (rs.next()) {
@@ -137,7 +135,8 @@ public class Downloader extends Module {
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't load image signatures from the DB.", e);
         }
-        
+
+        // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
@@ -168,34 +167,40 @@ public class Downloader extends Module {
         return signature;
     }
     
-    public final synchronized void addImageSignature(String md5sum, byte[] signature) {
-        imageSignatures.put(md5sum, signature);
-        try {
-            addSignature.setString(1, md5sum);
-            addSignature.setBytes(2, signature);
-            addSignature.executeUpdate();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "An error has been occurred during adding signature of '" + md5sum + "' into the DB", e);
+    public final void addImageSignature(String md5sum, byte[] signature) {
+        synchronized (imageSignatures) {
+            imageSignatures.put(md5sum, signature);
+        }
+        synchronized (dbDriver) {
+            try {
+                addSignature.setString(1, md5sum);
+                addSignature.setBytes(2, signature);
+                addSignature.executeUpdate();
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "An error has been occurred during adding signature of '" + md5sum + "' into the DB", e);
+            }
         }
     }
 
-    public synchronized String searchDupBySignature(byte[] signature) {
-        Iterator sig = imageSignatures.keySet().iterator();
-        while (sig.hasNext()) {
-            String md5sum = (String)sig.next();
-            byte[] signature2 = imageSignatures.get(md5sum);
-            int d = 0;
-            int c = 0;
-            for (int i = 0; i < signatureBaseSize; i++) {
-                for (int j = 0; j < signatureBaseSize; j++) {
-                    int dr = (signature[c] & 0xff) - (signature2[c++] & 0xff);
-                    int dg = (signature[c] & 0xff) - (signature2[c++] & 0xff);
-                    int db = (signature[c] & 0xff) - (signature2[c++] & 0xff);
-                    d += Math.ceil(Math.sqrt(dr * dr + dg * dg + db * db));
+    public String searchDupBySignature(byte[] signature) {
+        synchronized (imageSignatures) {
+            Iterator sig = imageSignatures.keySet().iterator();
+            while (sig.hasNext()) {
+                String md5sum = (String)sig.next();
+                byte[] signature2 = imageSignatures.get(md5sum);
+                int d = 0;
+                int c = 0;
+                for (int i = 0; i < signatureBaseSize; i++) {
+                    for (int j = 0; j < signatureBaseSize; j++) {
+                        int dr = (signature[c] & 0xff) - (signature2[c++] & 0xff);
+                        int dg = (signature[c] & 0xff) - (signature2[c++] & 0xff);
+                        int db = (signature[c] & 0xff) - (signature2[c++] & 0xff);
+                        d += Math.ceil(Math.sqrt(dr * dr + dg * dg + db * db));
+                    }
                 }
-            }
-            if (d <= signatureMaxDistance) {
-                return md5sum;
+                if (d <= signatureMaxDistance) {
+                    return md5sum;
+                }
             }
         }
         return null;
@@ -209,22 +214,20 @@ public class Downloader extends Module {
         return result;
     }
 
-    protected synchronized String[] searchDup(String md5sum) {
-        try {
+    protected String[] searchDup(String md5sum) throws Exception {
+        synchronized (dbDriver) {
             connectToDB();
             searchRecord.setString(1, md5sum);
             ResultSet rs = searchRecord.executeQuery();
             if (rs.next()) {
                 return new String[]{rs.getString(4), rs.getString(3), rs.getString(1), rs.getString(2)};
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "An error occurred during searching md5sum '" + md5sum.toString() + "' in the DB", e);
         }
         return null;
     }
 
-    protected synchronized void addFile(String md5sum, String from, String url, String file, ArrayList<String> tags) {
-        try {
+    protected void addFile(String md5sum, String from, String url, String file, ArrayList<String> tags) throws Exception {
+        synchronized (dbDriver) {
             connectToDB();
             addRecord.setString(1, md5sum);
             addRecord.setString(2, from);
@@ -236,50 +239,45 @@ public class Downloader extends Module {
                 addTag.setString(2, tags.get(i));
                 addTag.executeUpdate();
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "An error occurred during adding new record to the DB for url '" + url + "' from '" + from + "' (" + md5sum.toString() + ")", e);
         }
     }
 
-    private synchronized void connectToDB() {
+    protected void deleteFile(String md5sum) throws Exception {
+        synchronized (dbDriver) {
+            connectToDB();
+            deleteRecord.setString(1, md5sum);
+            deleteRecord.executeUpdate();
+            deleteTag.setString(1, md5sum);
+            deleteTag.executeUpdate();
+            deleteSignature.setString(1, md5sum);
+            deleteSignature.executeUpdate();
+        }
+        synchronized (imageSignatures) {
+            imageSignatures.remove(md5sum);
+        }
+    }
+
+    private void connectToDB() throws Exception {
         // Return if connection is opened already
-        try {
-            if (connection != null) {
-                return;
-            }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't check availability of JDBC connection", e);
+        if ((connection != null) && !connection.isClosed() && connection.isValid(5)) {
+            return;
         }
         // Connect
-        for (int i = 0; i < dbRetries; i++) {
-            try {
-                connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
-                break;
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't open JDBC connection to '" + dbUrl + "'", e);
-                try {
-                    sleep(dbTimeout * 1000);
-                } catch (Exception ex) {
-                    logger.log(Level.WARNING, "Can't sleep!", ex);
-                }
-            }
-        }
+        connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        try {
-            PreparedStatement createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255), `file` TEXT(255))"));
-            createTable.execute();
-            createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_tags` (`md5` TEXT(32), `tag` TEXT(20))"));
-            createTable.execute();
-            createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-signatures", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_signatures` (`md5` TEXT(32), `signature` BLOB)"));
-            createTable.execute();
-            addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
-            addTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
-            searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url`, `file` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
-            addSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)"));
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't prepare JDBC statements", e);
-        }
-
+        PreparedStatement createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255), `file` TEXT(255))"));
+        createTable.execute();
+        createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_tags` (`md5` TEXT(32), `tag` TEXT(20))"));
+        createTable.execute();
+        createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-signatures", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_signatures` (`md5` TEXT(32), `signature` BLOB)"));
+        createTable.execute();
+        addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
+        addTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
+        searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url`, `file` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
+        addSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)"));
+        deleteRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.delete", "DELETE FROM `javaxmppbot_downloader` WHERE `md5`=?"));
+        deleteTag = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-tag", "DELETE FROM `javaxmppbot_downloader_tags` WHERE `md5`=?"));
+        deleteSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-signature", "DELETE FROM `javaxmppbot_downloader_signatures` WHERE `md5`=?"));
     }
 
     @Override
@@ -400,6 +398,8 @@ class DownloaderThread extends Thread {
                     BufferedInputStream in = null;
                     BufferedOutputStream out = null;
                     File file = null;
+                    String md5sum = null;
+                    boolean hasBeenAdded = false;
                     try {
                         MessageDigest messageDigest = MessageDigest.getInstance("MD5");
                         messageDigest.reset();
@@ -431,7 +431,7 @@ class DownloaderThread extends Thread {
                         // Get extension if it is defined for this file type
                         String extension = downloader.getExtension(realFileType);
 
-                        String md5sum = HexCodec.bytesToHex(messageDigest.digest());
+                        md5sum = HexCodec.bytesToHex(messageDigest.digest());
                         logger.log(Level.INFO, "OK! File {0} saved temporary as {1} MD5={2}.", new Object[]{url, tmpFilename, md5sum});
                         String[] dup = downloader.searchDup(md5sum);
                         if (dup != null) {
@@ -467,6 +467,7 @@ class DownloaderThread extends Thread {
                                     isntDuplicate = false;
                                 } else {
                                     downloader.addImageSignature(md5sum, signature);
+                                    hasBeenAdded = true;
                                 }
                             }
 
@@ -474,9 +475,10 @@ class DownloaderThread extends Thread {
                             if (isntDuplicate) {
                                 String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
                                 String newFilepath = downloader.storeTo + File.separator + newFilename;
+                                downloader.addFile(md5sum, message.from, url, newFilename, tags);
+                                hasBeenAdded = true;
                                 if (file.renameTo(new File(newFilepath))) {
                                     logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
-                                    downloader.addFile(md5sum, message.from, url, newFilename, tags);
                                 } else {
                                     throw new Exception( "Can't rename file '" + tmpFilename + "' to '" + newFilepath + "'");
                                 }
@@ -484,7 +486,14 @@ class DownloaderThread extends Thread {
                             }
                         }
                     } catch (Exception e) {
-                        logger.log(Level.WARNING, "An error occurred during downloading file '" + url + "'", e);
+                        logger.log(Level.WARNING, "An error occurred during processing file '" + url + "'", e);
+                        if (hasBeenAdded) {
+                            try {
+                                downloader.deleteFile(md5sum);
+                            } catch (Exception e2) {
+                                logger.log(Level.WARNING, "Can't delete records for md5='" + md5sum + "'", e);
+                            }
+                        }
                     } finally {
                         try {
                             if (in != null) {
@@ -497,7 +506,7 @@ class DownloaderThread extends Thread {
                                 file.delete();
                             }
                         } catch (Exception e) {
-                            logger.log(Level.WARNING, "An error occurred during downloading file '" + url + "'", e);
+                            logger.log(Level.WARNING, "An error occurred during processing file '" + url + "'", e);
                         }
                     }
                 } else {
