@@ -79,6 +79,7 @@ public final class XMPPBot extends Thread implements Bot {
     private int connectionRetries;
     private int connectionInterval;
     private int silenceTime;
+    private int sendDelay;
     private boolean enabled;
     private Properties properties;
     private String config;
@@ -91,7 +92,7 @@ public final class XMPPBot extends Thread implements Bot {
     private String[] owners;
     private String[] autojoinRooms;
     private List<String> ignoreList;
-    private OutgoingMessageQueue outgoingMessageQueue;
+    private final List<Message> outgoingMessageQueue;
     private boolean roomsShouldBeReconnected;
 
     public XMPPBot(String configFile) throws Exception {
@@ -107,7 +108,7 @@ public final class XMPPBot extends Thread implements Bot {
         properties = new Properties();
         ignoreList = new ArrayList<String>();
         reloadConfig();
-        outgoingMessageQueue = new OutgoingMessageQueue(this);
+        outgoingMessageQueue = new ArrayList<Message>();
         connectionConfiguration = new ConnectionConfiguration(properties.getProperty("server"),
             new Integer(properties.getProperty("port")),
             new ProxyInfo(ProxyType.valueOf(properties.getProperty("proxy.type")),
@@ -152,6 +153,7 @@ public final class XMPPBot extends Thread implements Bot {
         connectionRetries = new Integer(newProperties.getProperty("connection-retries", "10"));
         connectionInterval = new Integer(newProperties.getProperty("connection-interval", "5"));
         silenceTime = new Integer(newProperties.getProperty("silence-time", "3"));
+        sendDelay = new Integer(newProperties.getProperty("send-delay", "1000"));
 
         // Set default values for undefined newProperties
         if (newProperties.getProperty("port") == null) {
@@ -195,9 +197,6 @@ public final class XMPPBot extends Thread implements Bot {
         properties = newProperties;
 
         // Reload all modules
-        for (int i = 0; i < modules.size(); i++) {
-            if (modules.get(i).isEnabled()) modules.get(i).disable();
-        }
         modules.clear();
         if (!properties.getProperty("modules", "").equals("")) {
             List<URL> urls = new ArrayList<URL>();
@@ -214,12 +213,6 @@ public final class XMPPBot extends Thread implements Bot {
                 java.lang.reflect.Constructor constructor = classloader.loadClass("com.devti.JavaXMPPBot.modules."+ma[i].trim()).getConstructor(new Class[] {Class.forName("com.devti.JavaXMPPBot.Bot")});
                 modules.add((Module)constructor.newInstance(this));
             }
-        }
-        for (int i = 0; i < modules.size(); i++) {
-            modules.get(i).enable();
-            logger.log(Level.INFO, "Module {0} has been enabled.", modules.get(i).getClass().getName());
-            modules.get(i).start();
-            logger.log(Level.INFO, "Module {0} has been started.", modules.get(i).getClass().getName());
         }
     }
 
@@ -264,7 +257,7 @@ public final class XMPPBot extends Thread implements Bot {
 
         // Autojoin rooms
         for (int i = 0; i < autojoinRooms.length; i++) {
-            join(autojoinRooms[i]);
+            joinRoom(autojoinRooms[i]);
         }
 
         start();
@@ -278,7 +271,7 @@ public final class XMPPBot extends Thread implements Bot {
                 connection.disconnect();
                 enabled = false;
                 synchronized (this) {
-                    notify();
+                    notifyAll();
                 }
             }
         } catch (Exception e) {
@@ -287,7 +280,7 @@ public final class XMPPBot extends Thread implements Bot {
     }
 
     @Override
-    public void join(String room) {
+    public void joinRoom(String room) {
         for (int i = 0; i < connectionRetries; i++) {
             try {
                 ignoreList.add(room + "/.*");
@@ -310,7 +303,7 @@ public final class XMPPBot extends Thread implements Bot {
     }
 
     @Override
-    public void leave(String room) {
+    public void leaveRoom(String room) {
         for (int i = 0; i < rooms.size(); i++) {
             if (rooms.get(i).getRoom().equals(room)) {
                 rooms.get(i).leave();
@@ -324,7 +317,7 @@ public final class XMPPBot extends Thread implements Bot {
     public void rejoinToRooms() {
         roomsShouldBeReconnected = true;
         synchronized (this) {
-            notify();
+            notifyAll();
         }
     }
 
@@ -351,7 +344,7 @@ public final class XMPPBot extends Thread implements Bot {
     public void registerCommand(Command command) throws Exception {
         synchronized (commands) {
             if (commands.containsKey(command.command)) {
-                throw new Exception("Command '" + command.command + "' is registred already for module '" + command.module.getName() + "'.");
+                throw new Exception("Command '" + command.command + "' is registred already for module '" + command.module.getClass().getName() + "'.");
             } else {
                 commands.put(command.command, command);
             }
@@ -369,7 +362,7 @@ public final class XMPPBot extends Thread implements Bot {
     public void registerMessageProcessor(Module module) throws Exception {
         synchronized (messageProcessors) {
             if (messageProcessors.contains(module)) {
-                throw new Exception("Module '" + module.getName() + "' is registred already as message processor.");
+                throw new Exception("Module '" + module.getClass().getName() + "' is registred already as message processor.");
             } else {
                 messageProcessors.add(module);
             }
@@ -483,7 +476,12 @@ public final class XMPPBot extends Thread implements Bot {
             }
             Message message = new Message(originalMessage.to, to, bodyPrefix + reply);
             message.type = originalMessage.type;
-            outgoingMessageQueue.add(message);
+            synchronized (outgoingMessageQueue) {
+                outgoingMessageQueue.add(message);
+            }
+            synchronized (this) {
+                notifyAll();
+            }
         } else {
             logger.log(Level.WARNING, "Can''t send reply on message with type {0}.", originalMessage.type.toString());
         }
@@ -491,7 +489,6 @@ public final class XMPPBot extends Thread implements Bot {
 
     @Override
     public void run() {
-        outgoingMessageQueue.start();
         while (enabled) {
             // Rejoin to rooms after reconnect
             if (roomsShouldBeReconnected) {
@@ -503,11 +500,29 @@ public final class XMPPBot extends Thread implements Bot {
 
                 String[] roomNames = getRooms();
                 for (int i = 0; i < roomNames.length; i++) {
-                    leave(roomNames[i]);
-                    join(roomNames[i]);
+                    leaveRoom(roomNames[i]);
+                    joinRoom(roomNames[i]);
                 }
 
                 roomsShouldBeReconnected = false;
+            }
+
+            // Send messages from outgoing queue
+            if (outgoingMessageQueue.size() > 0) {
+                Message[] messages;
+                synchronized (outgoingMessageQueue) {
+                    messages = new Message[outgoingMessageQueue.size()];
+                    messages = outgoingMessageQueue.toArray(messages);
+                    outgoingMessageQueue.clear();
+                }
+                for (int i = 0; i < messages.length; i++) {
+                    sendMessage(messages[i]);
+                    try {
+                        Thread.sleep(sendDelay);
+                    } catch (Exception e) {
+                        logger.log(Level.WARNING, "An error has been occurred during sleep after sending.", e);
+                    }
+                }
             }
 
             try {

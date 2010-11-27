@@ -26,13 +26,10 @@ package com.devti.JavaXMPPBot.modules;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
-import java.util.logging.Logger;
 import java.util.logging.Level;
 
 
 public class Sample extends Module {
-
-    private static final Logger logger = Logger.getLogger(Sample.class.getName());
 
     public Sample(Bot bot) {
         super(bot);

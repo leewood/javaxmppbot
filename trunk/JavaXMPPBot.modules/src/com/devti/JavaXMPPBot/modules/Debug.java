@@ -28,11 +28,8 @@ import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Command;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class Debug extends Module {
-
-    private static final Logger logger = Logger.getLogger(Debug.class.getName());
 
     public Debug(Bot bot) {
         super(bot);

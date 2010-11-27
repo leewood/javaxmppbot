@@ -60,9 +60,9 @@ public class PacketProcessor implements PacketListener {
                     for (int i = 0; i < rooms.length; i++) {
                         if (from.equalsIgnoreCase(rooms[i] +"/"+bot.getResource())) {
                             try {
-                                bot.leave(rooms[i]);
+                                bot.leaveRoom(rooms[i]);
                                 Thread.sleep(1000);
-                                bot.join(rooms[i]);
+                                bot.joinRoom(rooms[i]);
                             } catch (Exception e) {
                                 logger.log(Level.WARNING, "Can't join to room '" + rooms[i] + "'", e);
                             }

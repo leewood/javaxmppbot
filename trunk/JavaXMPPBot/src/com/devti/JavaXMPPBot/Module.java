@@ -24,18 +24,15 @@
 package com.devti.JavaXMPPBot;
 
 import java.util.logging.Logger;
-import java.util.logging.Level;
 
-public class Module extends Thread {
+public class Module {
 
-    private static final Logger logger = Logger.getLogger(Module.class.getName());
-    private boolean enabled;
+    protected static final Logger logger = Logger.getLogger(Module.class.getName());
     protected Bot bot;
     protected Command[] commands;
 
     public Module(Bot bot) {
         this.bot = bot;
-        this.setName(this.getClass().getName() + "(" + bot.getConfigPath() + ")");
         commands = new Command[0];
     }
 
@@ -47,21 +44,6 @@ public class Module extends Thread {
         return null;
     }
 
-    public void disable() {
-        this.enabled = false;
-        synchronized (this) {
-            this.notify();
-        }
-    }
-
-    public void enable() {
-        this.enabled = true;
-    }
-
-    public boolean isEnabled() {
-        return this.enabled;
-    }
-
     public void processCommand(Message msg) {
     }
 
@@ -71,19 +53,6 @@ public class Module extends Thread {
 
     public String processOutgoingMessage(String msg) {
         return msg;
-    }
-
-    @Override
-    public void run() {
-        try {
-            synchronized (this) {
-                while (isEnabled()) {
-                    this.wait();
-                }
-            }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "An error occurred during run of module thread", e);
-        }
     }
 
 }
