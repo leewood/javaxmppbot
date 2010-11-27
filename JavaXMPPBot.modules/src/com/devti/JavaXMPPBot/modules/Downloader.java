@@ -56,8 +56,6 @@ import javax.imageio.ImageIO;
 
 public class Downloader extends Module {
 
-    private static final Logger logger = Logger.getLogger(Downloader.class.getName());
-
     private final Pattern urlPattern;
     private final Pattern tagPattern;
     private final byte signatureBaseSize;

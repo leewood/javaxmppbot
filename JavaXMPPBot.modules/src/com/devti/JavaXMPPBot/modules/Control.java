@@ -27,12 +27,9 @@ import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Command;
-import java.util.logging.Logger;
 import java.util.logging.Level;
 
 public class Control extends Module {
-
-    private static final Logger logger = Logger.getLogger(Control.class.getName());
 
     public Control(Bot bot) {
         super(bot);
@@ -64,10 +61,10 @@ public class Control extends Module {
             }
         // Join to a chat room
         } else if (msg.command.equals("join")) {
-            bot.join(msg.commandArgs.trim());
+            bot.joinRoom(msg.commandArgs.trim());
         // Leave a chat room
         } else if (msg.command.equals("leave")) {
-            bot.leave(msg.commandArgs.trim());
+            bot.leaveRoom(msg.commandArgs.trim());
         // List active rooms
         } else if (msg.command.equals("rooms")) {
             String[] rooms = bot.getRooms();

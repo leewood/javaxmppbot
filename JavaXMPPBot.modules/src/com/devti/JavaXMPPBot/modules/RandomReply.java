@@ -31,13 +31,10 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.logging.Logger;
 import java.util.logging.Level;
 import java.io.File;
 
 public class RandomReply extends Module {
-
-    private static final Logger logger = Logger.getLogger(RandomReply.class.getName());
 
     private Connection connection;
     private PreparedStatement create;

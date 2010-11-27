@@ -23,96 +23,45 @@
 
 package com.devti.JavaXMPPBot;
 
-import java.io.FilenameFilter;
 import java.io.File;
-import java.util.logging.Logger;
-import java.util.logging.Level;
-import java.util.Properties;
-import java.io.FileInputStream;
-
-class ConfigsFilter implements FilenameFilter {
-    @Override
-    public boolean accept(File dir, String name) {
-        return name.endsWith(".cfg");
-    }
-}
 
 public class Main {
 
-    private static final Logger logger = Logger.getLogger(Main.class.getName());
-
-    private static final String mainConfig = ".javaxmppbotrc";
-
-    private static String configFile = "";
-    private static Integer connectionInterval = 5;
-    private static Integer checkInterval = 5;
-    private static BotManager botManager = new BotManager();
-    private static Properties properties = new Properties();
+    private static XMPPBot bot;
+    private static final String defaultConfigFile = ".JavaXMPPBot.cfg";
+    private static String configFile;
 
     public static void main(String[] args) {
-        // Get config file path from args if it's specified
-        if (args.length > 0) {
+
+        if (args.length == 0) {
+            configFile = System.getProperty("user.home") + File.separator + defaultConfigFile;
+        } else if (args.length == 1) {
             configFile = args[0];
-        }
-        // Load main config
-        if ((configFile == null) || configFile.trim().equals("")) {
-            if (System.getProperty("user.home", "").trim().equals("")) {
-                logger.severe("Config file isn't specified and system property user.home isn't defined too.");
-                System.exit(1);
-            }
-            configFile = System.getProperty("user.home") + File.separator + mainConfig;
-        }
-        try {
-            properties.loadFromXML(new FileInputStream(configFile));
-            if (properties.getProperty("config-directory") == null) {
-                throw new Exception("Property 'config-directory' isn't defined in the main config.");
-            }
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error occured during loading config from file '" + configFile + "'.", e);
+        } else {
+            System.err.println("Usage: java -jar JavaXMPPBot.jar <CONFIG_FILE>");
             System.exit(1);
         }
 
-        // Load bots
+        // Load and connect bot
         try {
-            File dir = new File(properties.getProperty("config-directory"));
-            if (!dir.exists()) {
-                throw new Exception("Config directory '" + properties.getProperty("config-directory") + "' doesn't exist.");
-            }
-            if (!dir.isDirectory()) {
-                throw new Exception("Specified config directory '" + properties.getProperty("config-directory") + "' isn't a directory.");
-            }
-            FilenameFilter filter = new ConfigsFilter();
-            File[] files = dir.listFiles(filter);
-            if (files.length == 0) {
-                throw new Exception("There aren't config files (*.cfg) in the specified config directory '" + properties.getProperty("config-directory") + "'.");
-            }
-            for (int i = 0; i < files.length; i++) {
-                botManager.add(new XMPPBot(files[i].toString()));
-            }
+            bot = new XMPPBot(configFile);
+            bot.connect();
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error occured during bot loading.", e);
-            System.exit(1);
-        }
-
-        // Connect all bots
-        try {
-            botManager.connectAll(connectionInterval);
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error occured during bot connection.", e);
+            System.err.println("Can't load bot with config file '" +
+                               configFile + "': " +
+                               e.getLocalizedMessage());
             System.exit(1);
         }
 
         // Wait for all bots exit
         try {
-            while(!botManager.allAreDead()) {
-                Thread.sleep(checkInterval*1000);
-            }
+            bot.join();
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error occured during checking bot availability.", e);
+            System.err.println("Error occured during waiting for the bot: " +
+                               e.getLocalizedMessage());
             System.exit(1);
         }
 
-        logger.info("All bots are closed, so exit.");
         System.exit(0);
     }
 

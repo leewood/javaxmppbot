@@ -27,12 +27,10 @@ import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.io.File;
 
 public class RandomFile extends Module {
 
-    private static final Logger logger = Logger.getLogger(RandomFile.class.getName());
     private final String keyMessage;
     private final String replyFormat;
     private File dir;

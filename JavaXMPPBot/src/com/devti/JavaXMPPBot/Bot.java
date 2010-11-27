@@ -34,14 +34,12 @@ public interface Bot {
     public void connect();
     public void disconnect();
 
-    public void join(String room);
-    public void leave(String room);
+    public void joinRoom(String room);
+    public void leaveRoom(String room);
     public void rejoinToRooms();
     public String[] getRooms();
     public Room getRoom(String room);
     public String getNickname(String room);
-
-    public boolean isAlive();
 
     public String[] getModules();
     public Module getModule(String name);
