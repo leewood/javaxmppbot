@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 import java.util.Properties;
-import java.io.FileInputStream;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.ConnectionConfiguration;
 import org.jivesoftware.smack.proxy.ProxyInfo;
@@ -35,6 +34,7 @@ import org.jivesoftware.smack.proxy.ProxyInfo.ProxyType;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.File;
+import java.io.FileReader;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Collections;
@@ -139,7 +139,7 @@ public final class XMPPBot extends Thread implements Bot {
     public void reloadConfig() throws Exception {
 
         Properties newProperties = new Properties();
-        newProperties.loadFromXML(new FileInputStream(config));
+        newProperties.load(new FileReader(config));
 
         // Check required newProperties
         String[] requirednewProperties = {"server", "username", "password"};
@@ -210,8 +210,10 @@ public final class XMPPBot extends Thread implements Bot {
             ClassLoader classloader = new URLClassLoader(urlsArray);
             String[] ma = properties.getProperty("modules").split(";");
             for (int i = 0; i < ma.length; i++) {
+                logger.log(Level.INFO, "Loading module {0}...", ma[i]);
                 java.lang.reflect.Constructor constructor = classloader.loadClass("com.devti.JavaXMPPBot.modules."+ma[i].trim()).getConstructor(new Class[] {Class.forName("com.devti.JavaXMPPBot.Bot")});
                 modules.add((Module)constructor.newInstance(this));
+                logger.log(Level.INFO, "Module {0} has been loaded.", ma[i]);
             }
         }
     }
