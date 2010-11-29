@@ -142,10 +142,10 @@ public final class XMPPBot extends Thread implements Bot {
         newProperties.load(new FileReader(config));
 
         // Check required newProperties
-        String[] requirednewProperties = {"server", "username", "password"};
-        for (int i = 0; i < requirednewProperties.length; i++) {
-            if (newProperties.getProperty(requirednewProperties[i]) == null) {
-                throw new Exception("Required property '" + requirednewProperties[i] + "' isn't defined in the config '" + config + "'.");
+        String[] requiredNewProperties = {"server", "username", "password"};
+        for (int i = 0; i < requiredNewProperties.length; i++) {
+            if (newProperties.getProperty(requiredNewProperties[i]) == null) {
+                throw new Exception("Required property '" + requiredNewProperties[i] + "' isn't defined in the config '" + config + "'.");
             }
         }
 
@@ -193,11 +193,13 @@ public final class XMPPBot extends Thread implements Bot {
             ignoreList.addAll(Arrays.asList(newProperties.getProperty("ignore").split(";")));
         }
 
+        // Unload modules
+        modules.clear();
+
         // New config is OK, load it
         properties = newProperties;
 
-        // Reload all modules
-        modules.clear();
+        // Reload modules
         if (!properties.getProperty("modules", "").equals("")) {
             List<URL> urls = new ArrayList<URL>();
             String modulesPath = properties.getProperty("modules-path", System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "modules");
@@ -211,7 +213,7 @@ public final class XMPPBot extends Thread implements Bot {
             String[] ma = properties.getProperty("modules").split(";");
             for (int i = 0; i < ma.length; i++) {
                 logger.log(Level.INFO, "Loading module {0}...", ma[i]);
-                java.lang.reflect.Constructor constructor = classloader.loadClass("com.devti.JavaXMPPBot.modules."+ma[i].trim()).getConstructor(new Class[] {Class.forName("com.devti.JavaXMPPBot.Bot")});
+                java.lang.reflect.Constructor constructor = classloader.loadClass("com.devti.JavaXMPPBot.modules."+ma[i].trim()).getConstructor(Bot.class);
                 modules.add((Module)constructor.newInstance(this));
                 logger.log(Level.INFO, "Module {0} has been loaded.", ma[i]);
             }
