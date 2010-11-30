@@ -194,6 +194,8 @@ public final class XMPPBot extends Thread implements Bot {
         }
 
         // Unload modules
+        messageProcessors.clear();
+        commands.clear();
         modules.clear();
 
         // New config is OK, load it
@@ -205,15 +207,22 @@ public final class XMPPBot extends Thread implements Bot {
             String modulesPath = properties.getProperty("modules-path", System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "modules");
             String[] pathes = modulesPath.split(";");
             for (int i = 0; i < pathes.length; i++) {
+                logger.log(Level.INFO, "Adding path \"{0}\" to class loader...", pathes[i]);
                 addUrls(urls, new File(pathes[i]));
             }
             URL[] urlsArray = new URL[urls.size()];
             urls.toArray(urlsArray);
-            ClassLoader classloader = new URLClassLoader(urlsArray);
+            URLClassLoader classLoader = new URLClassLoader(urlsArray);
+            String loadedURLs = new String();
+            urlsArray = classLoader.getURLs();
+            for (int i = 0; i < urlsArray.length; i++) {
+                loadedURLs += " " + urlsArray[i].toString();
+            }
+            logger.log(Level.INFO, "Created new class loader with URLs:{0}", loadedURLs);
             String[] ma = properties.getProperty("modules").split(";");
             for (int i = 0; i < ma.length; i++) {
                 logger.log(Level.INFO, "Loading module {0}...", ma[i]);
-                java.lang.reflect.Constructor constructor = classloader.loadClass("com.devti.JavaXMPPBot.modules."+ma[i].trim()).getConstructor(Bot.class);
+                java.lang.reflect.Constructor constructor = classLoader.loadClass("com.devti.JavaXMPPBot.modules."+ma[i].trim()).getConstructor(Bot.class);
                 modules.add((Module)constructor.newInstance(this));
                 logger.log(Level.INFO, "Module {0} has been loaded.", ma[i]);
             }
