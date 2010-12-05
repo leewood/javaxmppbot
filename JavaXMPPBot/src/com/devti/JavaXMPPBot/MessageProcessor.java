@@ -91,7 +91,9 @@ public class MessageProcessor extends Thread {
                     if (message.command == null) {
                         Module[] modules = bot.getMessageProcessors();
                         for (int i = 0; i < modules.length; i++) {
-                            modules[i].processMessage(message);
+                            if (modules[i].processMessage(message)) {
+                                break;
+                            }
                         }
                     // Search specified command in registred commands
                     } else {
