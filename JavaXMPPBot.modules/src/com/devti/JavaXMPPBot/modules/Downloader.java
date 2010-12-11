@@ -82,6 +82,10 @@ public class Downloader extends Module {
     protected final String filenameFormat;
     protected final String dupReplyFormat;
 
+    private final String[] tags;
+    private final boolean includeTags;
+    private final boolean excludeTags;
+
     public Downloader(Bot bot) {
         super(bot);
 
@@ -105,6 +109,13 @@ public class Downloader extends Module {
                 }
             }
         }
+        if (bot.getProperty("modules.Downloader.tags") != null) {
+            tags = bot.getProperty("modules.Downloader.tags").split(";");
+        } else {
+            tags = new String[0];
+        }
+        excludeTags = bot.getProperty("modules.Downloader.exclude-specified-tags", "no").equalsIgnoreCase("yes");
+        includeTags = (!excludeTags && (tags.length > 0));
         signatureBaseSize = new Byte(bot.getProperty("modules.Downloader.signature-base-size", "10"));
         byte minMatchPercent = new Byte(bot.getProperty("modules.Downloader.signature-min-match-percent", "99"));
         int maxImageDistance = (int)Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
@@ -257,8 +268,15 @@ public class Downloader extends Module {
 
     private void connectToDB() throws Exception {
         // Return if connection is opened already
-        if ((connection != null) && !connection.isClosed() && connection.isValid(5)) {
-            return;
+        try {
+            if (connection != null &&
+                !connection.isClosed() &&
+                (dbDriver.equalsIgnoreCase("org.sqlite.JDBC") || connection.isValid(5))
+               ) {
+                return;
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "JDBC connection isn't ready or can't check it.", e);
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -282,10 +300,32 @@ public class Downloader extends Module {
     public boolean processMessage(Message msg) {
         String message = msg.body;
         // Get tags
-        ArrayList<String> tags = new ArrayList<String>();
+        ArrayList<String> messageTags = new ArrayList<String>();
         Matcher matcher = tagPattern.matcher(message);
         while (matcher.find()) {
-            tags.add(matcher.group(1));
+            messageTags.add(matcher.group(1));
+        }
+
+        // Check tag exclusions
+        if (excludeTags) {
+            for (int i = 0; i < tags.length; i++) {
+                if (messageTags.contains(tags[i])) {
+                    logger.log(Level.INFO, "Message contains an excluded tag ({0}), so skip it.", tags[i]);
+                    return super.processMessage(msg);
+                }
+            }
+        // Check tag inclusions
+        } else if (includeTags) {
+            boolean skip = true;
+            for (int i = 0; i < tags.length; i++) {
+                if (messageTags.contains(tags[i])) {
+                    skip = false;
+                }
+            }
+            if (skip) {
+                logger.info("Message doesn't contain any of specified tags, so skip it.");
+                return super.processMessage(msg);
+            }
         }
 
         // Get URLs
@@ -293,7 +333,7 @@ public class Downloader extends Module {
         while (matcher.find()) {
             String url = matcher.group();
             logger.log(Level.INFO, "I have got a new URL {0}.", url);
-            DownloaderThread dt = new DownloaderThread(bot, this, url, tags, msg);
+            DownloaderThread dt = new DownloaderThread(bot, this, url, messageTags, msg);
             dt.start();
         }
         return super.processMessage(msg);
