@@ -26,6 +26,7 @@ package com.devti.JavaXMPPBot.modules;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
+import com.devti.JavaXMPPBot.Command;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.util.regex.Pattern;
@@ -67,13 +68,14 @@ public class Downloader extends Module {
     private final String dbPassword;
 
     private Connection connection;
-    private PreparedStatement addRecord;
-    private PreparedStatement addTag;
-    private PreparedStatement searchRecord;
-    private PreparedStatement addSignature;
-    private PreparedStatement deleteRecord;
-    private PreparedStatement deleteTag;
-    private PreparedStatement deleteSignature;
+    private PreparedStatement psAddRecord;
+    private PreparedStatement psAddTag;
+    private PreparedStatement psSearchRecord;
+    private PreparedStatement psAddSignature;
+    private PreparedStatement psDeleteRecord;
+    private PreparedStatement psDeleteTag;
+    private PreparedStatement psDeleteSignature;
+    private PreparedStatement psGetMd5ByFilename;
 
     private final HashMap<String, String> extensionsMap;
     private final HashMap<String, byte[]> imageSignatures;
@@ -145,6 +147,13 @@ public class Downloader extends Module {
             logger.log(Level.WARNING, "Can't load image signatures from the DB.", e);
         }
 
+        try {
+            // Register commands provided by this module
+            bot.registerCommand(new Command("delete_file", "remove a file downloaded by Downloader module", true, this));
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't register a command.", e);
+        }
+
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
@@ -182,9 +191,9 @@ public class Downloader extends Module {
         }
         synchronized (dbDriver) {
             try {
-                addSignature.setString(1, md5sum);
-                addSignature.setBytes(2, signature);
-                addSignature.executeUpdate();
+                psAddSignature.setString(1, md5sum);
+                psAddSignature.setBytes(2, signature);
+                psAddSignature.executeUpdate();
             } catch (Exception e) {
                 logger.log(Level.WARNING, "An error has been occurred during adding signature of '" + md5sum + "' into the DB", e);
             }
@@ -226,8 +235,8 @@ public class Downloader extends Module {
     protected String[] searchDup(String md5sum) throws Exception {
         synchronized (dbDriver) {
             connectToDB();
-            searchRecord.setString(1, md5sum);
-            ResultSet rs = searchRecord.executeQuery();
+            psSearchRecord.setString(1, md5sum);
+            ResultSet rs = psSearchRecord.executeQuery();
             if (rs.next()) {
                 return new String[]{rs.getString(4), rs.getString(3), rs.getString(1), rs.getString(2)};
             }
@@ -238,15 +247,15 @@ public class Downloader extends Module {
     protected void addFile(String md5sum, String from, String url, String file, ArrayList<String> tags) throws Exception {
         synchronized (dbDriver) {
             connectToDB();
-            addRecord.setString(1, md5sum);
-            addRecord.setString(2, from);
-            addRecord.setString(3, url);
-            addRecord.setString(4, file);
-            addRecord.executeUpdate();
+            psAddRecord.setString(1, md5sum);
+            psAddRecord.setString(2, from);
+            psAddRecord.setString(3, url);
+            psAddRecord.setString(4, file);
+            psAddRecord.executeUpdate();
             for (int i = 0; i < tags.size(); i++) {
-                addTag.setString(1, md5sum);
-                addTag.setString(2, tags.get(i));
-                addTag.executeUpdate();
+                psAddTag.setString(1, md5sum);
+                psAddTag.setString(2, tags.get(i));
+                psAddTag.executeUpdate();
             }
         }
     }
@@ -254,12 +263,12 @@ public class Downloader extends Module {
     protected void deleteFile(String md5sum) throws Exception {
         synchronized (dbDriver) {
             connectToDB();
-            deleteRecord.setString(1, md5sum);
-            deleteRecord.executeUpdate();
-            deleteTag.setString(1, md5sum);
-            deleteTag.executeUpdate();
-            deleteSignature.setString(1, md5sum);
-            deleteSignature.executeUpdate();
+            psDeleteRecord.setString(1, md5sum);
+            psDeleteRecord.executeUpdate();
+            psDeleteTag.setString(1, md5sum);
+            psDeleteTag.executeUpdate();
+            psDeleteSignature.setString(1, md5sum);
+            psDeleteSignature.executeUpdate();
         }
         synchronized (imageSignatures) {
             imageSignatures.remove(md5sum);
@@ -287,13 +296,14 @@ public class Downloader extends Module {
         createTable.execute();
         createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-signatures", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_signatures` (`md5` TEXT(32), `signature` BLOB)"));
         createTable.execute();
-        addRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
-        addTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
-        searchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url`, `file` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
-        addSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)"));
-        deleteRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.delete", "DELETE FROM `javaxmppbot_downloader` WHERE `md5`=?"));
-        deleteTag = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-tag", "DELETE FROM `javaxmppbot_downloader_tags` WHERE `md5`=?"));
-        deleteSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-signature", "DELETE FROM `javaxmppbot_downloader_signatures` WHERE `md5`=?"));
+        psAddRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
+        psAddTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
+        psSearchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url`, `file` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
+        psAddSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)"));
+        psDeleteRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.delete", "DELETE FROM `javaxmppbot_downloader` WHERE `md5`=?"));
+        psDeleteTag = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-tag", "DELETE FROM `javaxmppbot_downloader_tags` WHERE `md5`=?"));
+        psDeleteSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-signature", "DELETE FROM `javaxmppbot_downloader_signatures` WHERE `md5`=?"));
+        psGetMd5ByFilename = connection.prepareStatement(bot.getProperty("modules.Downloader.select-by-file", "SELECT `md5` FROM `javaxmppbot_downloader` WHERE `file` = ? LIMIT 1"));
     }
 
     @Override
@@ -337,6 +347,37 @@ public class Downloader extends Module {
             dt.start();
         }
         return super.processMessage(msg);
+    }
+
+    @Override
+    public void processCommand(Message msg) {
+        // Delete file
+        if (msg.command.equals("delete_file")) {
+            String filename = msg.commandArgs.trim();
+            try {
+                ResultSet rs;
+                synchronized (dbDriver) {
+                    connectToDB();
+                    psGetMd5ByFilename.setString(1, filename);
+                    rs = psGetMd5ByFilename.executeQuery();
+                }
+                if (rs.next()) {
+                    String md5 = rs.getString(1);
+                    deleteFile(md5);
+                    File file = new File(storeTo + File.separator + filename);
+                    if (file.delete()) {
+                        bot.sendReply(msg, "File '" + filename + "' has been deleted.");
+                    } else {
+                        bot.sendReply(msg, "Error: can't delete file '" + filename + "'.");
+                    }
+                } else {
+                    bot.sendReply(msg, "Error: file '" + filename + "' isn't found.");
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Can't perfrom delete_file command.", e);
+                bot.sendReply(msg, "Error: can't perfrom delete_file command.");
+            }
+        }
     }
 
 }
