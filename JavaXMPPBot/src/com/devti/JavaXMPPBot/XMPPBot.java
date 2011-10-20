@@ -1,6 +1,6 @@
 /*
  *  JavaXMPPBot - XMPP(Jabber) bot written in Java
- *  Copyright 2010 Mikhail Telnov <michael.telnov@gmail.com>
+ *  Copyright 2011 Mikhail Telnov <michael.telnov@gmail.com>
  *
  *  This file is part of JavaXMPPBot.
  *
@@ -116,9 +116,18 @@ public final class XMPPBot extends Thread implements Bot {
                 new Integer(properties.getProperty("proxy.port")),
                 properties.getProperty("proxy.username"),
                 properties.getProperty("proxy.password")));
-        if (properties.getProperty("debug").equals("1")) {
-            connectionConfiguration.setDebuggerEnabled(true);
+        connectionConfiguration.setDebuggerEnabled(properties.getProperty("debug").equalsIgnoreCase("yes"));
+        connectionConfiguration.setServiceName(properties.getProperty("domain"));
+        if (properties.getProperty("tls").equalsIgnoreCase("enabled")) {
+            connectionConfiguration.setSecurityMode(ConnectionConfiguration.SecurityMode.enabled);
+        } else if (properties.getProperty("tls").equalsIgnoreCase("required")) {
+            connectionConfiguration.setSecurityMode(ConnectionConfiguration.SecurityMode.required);
+        } else {
+            connectionConfiguration.setSecurityMode(ConnectionConfiguration.SecurityMode.disabled);
         }
+        connectionConfiguration.setSelfSignedCertificateEnabled(properties.getProperty("allow-self-signed-certificates").equalsIgnoreCase("yes"));
+        connectionConfiguration.setCompressionEnabled(properties.getProperty("compression").equalsIgnoreCase("yes"));
+        connectionConfiguration.setSASLAuthenticationEnabled(properties.getProperty("sasl").equalsIgnoreCase("yes"));
 
         connection = new XMPPConnection(connectionConfiguration);
 
@@ -175,7 +184,22 @@ public final class XMPPBot extends Thread implements Bot {
             newProperties.setProperty("nick", newProperties.getProperty("username"));
         }
         if (newProperties.getProperty("debug") == null) {
-            newProperties.setProperty("debug", "0");
+            newProperties.setProperty("debug", "no");
+        }
+        if (newProperties.getProperty("domain") == null) {
+            newProperties.setProperty("domain", newProperties.getProperty("server"));
+        }
+        if (newProperties.getProperty("tls") == null) {
+            newProperties.setProperty("tls", "enabled");
+        }
+        if (newProperties.getProperty("allow-self-signed-certificates") == null) {
+            newProperties.setProperty("allow-self-signed-certificates", "yes");
+        }
+        if (newProperties.getProperty("compression") == null) {
+            newProperties.setProperty("compression", "yes");
+        }
+        if (newProperties.getProperty("sasl") == null) {
+            newProperties.setProperty("sasl", "yes");
         }
 
         // Load array newProperties
@@ -230,37 +254,45 @@ public final class XMPPBot extends Thread implements Bot {
     }
 
     @Override
-    public void connect() {
-        logger.log(Level.INFO, "Connecting to {0}.", properties.getProperty("server"));
+    public void connect() throws Exception {
+        boolean ok = false;
         for (int i = 0; i < connectionRetries; i++) {
+            logger.log(Level.INFO, "Connecting to {0}.", properties.getProperty("server"));
             try {
                 connection.connect();
                 logger.log(Level.INFO, "OK! Connected to {0}.", properties.getProperty("server"));
+                ok = true;
                 break;
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Can't connect to " + properties.getProperty("server"), e);
             }
-            try {
+            if ((i + 1) < connectionRetries) {
                 Thread.sleep(connectionInterval*1000);
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't sleep!", e);
             }
         }
-        logger.log(Level.INFO, "Logging as {0} on {1}.", new Object[]{properties.getProperty("username"), properties.getProperty("server")});
+        if (!ok) {
+           throw new Exception("Connection to " + properties.getProperty("server") + " failed.");
+        }
+
+        ok = false;        
         for (int i = 0; i < connectionRetries; i++) {
+            logger.log(Level.INFO, "Logging as {0} on {1}.", new Object[]{properties.getProperty("username"), properties.getProperty("server")});
             try {
                 connection.login(properties.getProperty("username"), properties.getProperty("password"), properties.getProperty("resource"));
                 logger.log(Level.INFO, "OK! Logged as {0} on {1}.", new Object[]{properties.getProperty("username"), properties.getProperty("server")});
+                ok = true;
                 break;
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Can't logon as " + properties.getProperty("username") + " on " + properties.getProperty("server"), e);
             }
-            try {
+            if ((i + 1) < connectionRetries) {
                 Thread.sleep(connectionInterval*1000);
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't sleep!", e);
             }
         }
+        if (!ok) {
+           throw new Exception("Login as " + properties.getProperty("username") + " failed.");
+        }
+
         logger.info("Set connection listener");
         connection.addConnectionListener(new ConnectionListener(this));
         logger.info("OK! connection listener is set");
