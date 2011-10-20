@@ -1,6 +1,6 @@
 /*
  *  JavaXMPPBot - XMPP(Jabber) bot written in Java
- *  Copyright 2010 Mikhail Telnov <michael.telnov@gmail.com>
+ *  Copyright 2011 Mikhail Telnov <michael.telnov@gmail.com>
  *
  *  This file is part of JavaXMPPBot.
  *
@@ -31,7 +31,7 @@ public interface Bot {
     public String getResource();
     public String getConfigPath();
 
-    public void connect();
+    public void connect() throws Exception;
     public void disconnect();
 
     public void joinRoom(String room);
