@@ -380,6 +380,14 @@ public class Downloader extends Module {
         }
     }
 
+    @Override
+    public void onUnload() {
+        try {
+            connection.close();
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't close JDBC connection", e);
+        }
+    }
 }
 
 class HexCodec {

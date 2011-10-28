@@ -88,8 +88,15 @@ public class RandomReply extends Module {
 
     private void connectToDB() throws Exception {
         // Return if connection is opened already
-        if ((connection != null) && !connection.isClosed() && connection.isValid(5)) {
-            return;
+        try {
+            if (connection != null &&
+                !connection.isClosed() &&
+                (dbDriver.equalsIgnoreCase("org.sqlite.JDBC") || connection.isValid(5))
+               ) {
+                return;
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "JDBC connection isn't ready or can't check it.", e);
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -150,5 +157,14 @@ public class RandomReply extends Module {
             }
         }
         return super.processMessage(msg);
+    }
+
+    @Override
+    public void onUnload() {
+        try {
+            connection.close();
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Can't close JDBC connection", e);
+        }
     }
 }

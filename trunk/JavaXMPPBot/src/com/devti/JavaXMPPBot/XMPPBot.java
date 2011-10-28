@@ -20,7 +20,6 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot;
 
 import java.util.Arrays;
@@ -70,7 +69,6 @@ class ConnectionListener implements org.jivesoftware.smack.ConnectionListener {
         // Rejoin to rooms after reconnect
         bot.rejoinToRooms();
     }
-
 }
 
 public final class XMPPBot extends Thread implements Bot {
@@ -110,8 +108,8 @@ public final class XMPPBot extends Thread implements Bot {
         reloadConfig();
         outgoingMessageQueue = new ArrayList<Message>();
         connectionConfiguration = new ConnectionConfiguration(properties.getProperty("server"),
-            new Integer(properties.getProperty("port")),
-            new ProxyInfo(ProxyType.valueOf(properties.getProperty("proxy.type")),
+                new Integer(properties.getProperty("port")),
+                new ProxyInfo(ProxyType.valueOf(properties.getProperty("proxy.type")),
                 properties.getProperty("proxy.host"),
                 new Integer(properties.getProperty("proxy.port")),
                 properties.getProperty("proxy.username"),
@@ -250,8 +248,8 @@ public final class XMPPBot extends Thread implements Bot {
             String[] ma = properties.getProperty("modules").split(";");
             for (int i = 0; i < ma.length; i++) {
                 logger.log(Level.INFO, "Loading module {0}...", ma[i]);
-                java.lang.reflect.Constructor constructor = classLoader.loadClass("com.devti.JavaXMPPBot.modules."+ma[i].trim()).getConstructor(Bot.class);
-                modules.add((Module)constructor.newInstance(this));
+                java.lang.reflect.Constructor constructor = classLoader.loadClass("com.devti.JavaXMPPBot.modules." + ma[i].trim()).getConstructor(Bot.class);
+                modules.add((Module) constructor.newInstance(this));
                 logger.log(Level.INFO, "Module {0} has been loaded.", ma[i]);
             }
         }
@@ -271,14 +269,14 @@ public final class XMPPBot extends Thread implements Bot {
                 logger.log(Level.WARNING, "Can't connect to " + properties.getProperty("server"), e);
             }
             if ((i + 1) < connectionRetries) {
-                Thread.sleep(connectionInterval*1000);
+                Thread.sleep(connectionInterval * 1000);
             }
         }
         if (!ok) {
-           throw new Exception("Connection to " + properties.getProperty("server") + " failed.");
+            throw new Exception("Connection to " + properties.getProperty("server") + " failed.");
         }
 
-        ok = false;        
+        ok = false;
         for (int i = 0; i < connectionRetries; i++) {
             logger.log(Level.INFO, "Logging as {0} on {1}.", new Object[]{properties.getProperty("username"), properties.getProperty("server")});
             try {
@@ -290,11 +288,11 @@ public final class XMPPBot extends Thread implements Bot {
                 logger.log(Level.WARNING, "Can't logon as " + properties.getProperty("username") + " on " + properties.getProperty("server"), e);
             }
             if ((i + 1) < connectionRetries) {
-                Thread.sleep(connectionInterval*1000);
+                Thread.sleep(connectionInterval * 1000);
             }
         }
         if (!ok) {
-           throw new Exception("Login as " + properties.getProperty("username") + " failed.");
+            throw new Exception("Login as " + properties.getProperty("username") + " failed.");
         }
 
         logger.info("Set connection listener");
@@ -344,7 +342,7 @@ public final class XMPPBot extends Thread implements Bot {
                 logger.log(Level.WARNING, "Can't joint to room '" + room + "'", e);
             }
             try {
-                Thread.sleep(connectionInterval*1000);
+                Thread.sleep(connectionInterval * 1000);
             } catch (Exception e) {
                 logger.log(Level.WARNING, "Can't sleep!", e);
             }
@@ -439,7 +437,7 @@ public final class XMPPBot extends Thread implements Bot {
 
     @Override
     public String getJID() {
-        return properties.getProperty("username")+"@"+properties.getProperty("server");
+        return properties.getProperty("username") + "@" + properties.getProperty("server");
     }
 
     @Override
@@ -455,7 +453,9 @@ public final class XMPPBot extends Thread implements Bot {
     @Override
     public Module getModule(String name) {
         for (int i = 0; i < modules.size(); i++) {
-            if (modules.get(i).getClass().getSimpleName().equalsIgnoreCase(name)) return(modules.get(i));
+            if (modules.get(i).getClass().getSimpleName().equalsIgnoreCase(name)) {
+                return (modules.get(i));
+            }
         }
         return null;
     }
@@ -536,6 +536,23 @@ public final class XMPPBot extends Thread implements Bot {
         }
     }
 
+    private void processOugoingMessageQueue() {
+        Message[] messages;
+        synchronized (outgoingMessageQueue) {
+            messages = new Message[outgoingMessageQueue.size()];
+            messages = outgoingMessageQueue.toArray(messages);
+            outgoingMessageQueue.clear();
+        }
+        for (int i = 0; i < messages.length; i++) {
+            sendMessage(messages[i]);
+            try {
+                Thread.sleep(sendDelay);
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "An error has been occurred during sleep after sending.", e);
+            }
+        }
+    }
+
     @Override
     public void run() {
         while (enabled) {
@@ -557,21 +574,8 @@ public final class XMPPBot extends Thread implements Bot {
             }
 
             // Send messages from outgoing queue
-            if (outgoingMessageQueue.size() > 0) {
-                Message[] messages;
-                synchronized (outgoingMessageQueue) {
-                    messages = new Message[outgoingMessageQueue.size()];
-                    messages = outgoingMessageQueue.toArray(messages);
-                    outgoingMessageQueue.clear();
-                }
-                for (int i = 0; i < messages.length; i++) {
-                    sendMessage(messages[i]);
-                    try {
-                        Thread.sleep(sendDelay);
-                    } catch (Exception e) {
-                        logger.log(Level.WARNING, "An error has been occurred during sleep after sending.", e);
-                    }
-                }
+            while (outgoingMessageQueue.size() > 0) {
+                processOugoingMessageQueue();
             }
 
             try {
@@ -584,5 +588,4 @@ public final class XMPPBot extends Thread implements Bot {
 
         }
     }
-
 }
