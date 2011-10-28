@@ -30,6 +30,8 @@ public class Message {
     }
 
     public String from;
+    public String fromJID;
+    public String fromResource;
     public String to;
     public String body;
     public String command;
@@ -43,6 +45,8 @@ public class Message {
         this.from = from;
         this.to = to;
         this.body = body;
+        fromJID = null;
+        fromResource = null;
         command = null;
         commandArgs = null;
         type = Type.normal;

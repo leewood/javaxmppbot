@@ -27,6 +27,7 @@ import org.w3c.dom.Node;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 import org.w3c.dom.NodeList;
+import org.jivesoftware.smack.util.StringUtils;
 
 
 public class MessageProcessor extends Thread {
@@ -53,13 +54,15 @@ public class MessageProcessor extends Thread {
                 type = xmppMessage.getAttributes().getNamedItem("type").getTextContent();
             }
             String body = "";
+            String nick = null;
             NodeList nl = xmppMessage.getChildNodes();
             for (int i = 0; i < nl.getLength(); i++) {
                 if (nl.item(i).getNodeName().equals("body")) {
                     if (nl.item(i).getAttributes().getNamedItem("xmlns") == null) {
                         body = nl.item(i).getTextContent();
-                        break;
                     }
+                } else if (nl.item(i).getNodeName().equals("nick")) {
+                    nick = nl.item(i).getTextContent();
                 }
             }
             // If sender isn't in ignore list
@@ -76,14 +79,26 @@ public class MessageProcessor extends Thread {
                         message.commandArgs = args;
                     }
                 }
-                // Get room name and nick name if it's groupchat message
-                if (message.type == Message.Type.groupchat) {
-                    message.room = message.from.replaceFirst("/.*", "");
-                    message.nick = message.from.replaceFirst(".*/", "");
-                    message.isForMe = (message.body.startsWith(bot.getNickname(message.room)));
-                } else {
-                    message.nick = message.from.replaceFirst("/.*", "");
+                
+                String jid = StringUtils.parseBareAddress(message.from);
+                String[] rooms = bot.getRooms();
+                for (int i = 0; i < rooms.length; i++) {
+                    if (jid.equalsIgnoreCase(rooms[i])) {
+                        message.room = jid;
+                        break;
+                    }
+                }
+                
+                // Private message
+                if (message.room == null) {
+                    message.fromJID = jid;
+                    message.fromResource = StringUtils.parseResource(message.from);
                     message.isForMe = true;
+                // Group chat message
+                } else {
+                    message.nick = StringUtils.parseResource(message.from);
+                    message.fromJID = nick;
+                    message.isForMe = (message.body.startsWith(bot.getNickname(message.room)));
                 }
                 // Ignore self messages and process message through all modules
                 if (!((message.type == Message.Type.groupchat) && message.nick.equals(bot.getNickname(message.room)))) {
@@ -101,7 +116,7 @@ public class MessageProcessor extends Thread {
                         if (command == null) {
                             bot.sendReply(message, "Command '" + message.command + "' isn't found.");
                         } else {
-                            if (!command.ownerOnly || bot.isOwner(message.from)) {
+                            if (!command.ownerOnly || bot.isOwner(message.fromJID)) {
                                 command.module.processCommand(message);
                             } else {
                                 bot.sendReply(message, "This command isn't allowed to you.");

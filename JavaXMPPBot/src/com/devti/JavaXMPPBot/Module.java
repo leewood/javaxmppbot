@@ -54,5 +54,8 @@ public class Module {
     public String processOutgoingMessage(String msg) {
         return msg;
     }
+    
+    public void onUnload() {
+    }
 
 }
