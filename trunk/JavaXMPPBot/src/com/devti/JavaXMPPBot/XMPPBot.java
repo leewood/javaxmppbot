@@ -116,6 +116,7 @@ public final class XMPPBot extends Thread implements Bot {
                 new Integer(properties.getProperty("proxy.port")),
                 properties.getProperty("proxy.username"),
                 properties.getProperty("proxy.password")));
+        connectionConfiguration.setRosterLoadedAtLogin(false);
         connectionConfiguration.setDebuggerEnabled(properties.getProperty("debug").equalsIgnoreCase("yes"));
         connectionConfiguration.setServiceName(properties.getProperty("domain"));
         if (properties.getProperty("tls").equalsIgnoreCase("enabled")) {
@@ -220,6 +221,9 @@ public final class XMPPBot extends Thread implements Bot {
         // Unload modules
         messageProcessors.clear();
         commands.clear();
+        for (int i = 0; i < modules.size(); i++) {
+            modules.get(i).onUnload();
+        }
         modules.clear();
 
         // New config is OK, load it
