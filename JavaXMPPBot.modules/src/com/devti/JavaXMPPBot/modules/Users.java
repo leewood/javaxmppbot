@@ -41,7 +41,9 @@ public class Users extends Module {
     private PreparedStatement create;
     private PreparedStatement insert;
     private PreparedStatement select;
+    private PreparedStatement selectByNick;
     private PreparedStatement update;
+    private PreparedStatement updateNick;
     
     private final String dbUrl;
     private final String dbDriver;
@@ -74,6 +76,7 @@ public class Users extends Module {
         // Register commands provided by this module
         try {
             bot.registerCommand(new Command("register", "user registration", false, this));
+            bot.registerCommand(new Command("set_nick", "change your nickname", false, this));
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't register a command.", e);
         }
@@ -94,11 +97,13 @@ public class Users extends Module {
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        create = connection.prepareStatement(bot.getProperty("modules.Users.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_users` (`jid` TEXT, `password` TEXT)"));
+        create = connection.prepareStatement(bot.getProperty("modules.Users.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_users` (`jid` TEXT, `nickname` TEXT, `password` TEXT)"));
         create.execute();
-        insert = connection.prepareStatement(bot.getProperty("modules.Users.insert", "INSERT INTO `javaxmppbot_users` (`jid`, `password`) VALUES (?, ?)"));
+        insert = connection.prepareStatement(bot.getProperty("modules.Users.insert", "INSERT INTO `javaxmppbot_users` (`jid`, `nickname`, `password`) VALUES (?, ?, ?)"));
         select = connection.prepareStatement(bot.getProperty("modules.Users.select", "SELECT `password` FROM `javaxmppbot_users` WHERE `jid`=? LIMIT 1"));
+        selectByNick = connection.prepareStatement(bot.getProperty("modules.Users.select-by-nick", "SELECT `jid` FROM `javaxmppbot_users` WHERE `nickname`=? LIMIT 1"));
         update = connection.prepareStatement(bot.getProperty("modules.Users.update", "UPDATE `javaxmppbot_users` SET `password`=? WHERE `jid`=?"));
+        updateNick = connection.prepareStatement(bot.getProperty("modules.Users.update-nick", "UPDATE `javaxmppbot_users` SET `nickname`=? WHERE `jid`=?"));
     }
     
     @Override
@@ -134,7 +139,8 @@ public class Users extends Module {
                         synchronized (dbDriver) {
                             connectToDB();
                             insert.setString(1, msg.fromJID);
-                            insert.setString(2, md5sum);
+                            insert.setString(2, msg.fromJID);
+                            insert.setString(3, md5sum);
                             insert.executeUpdate();
                         }
                     } catch (Exception e) {
@@ -153,6 +159,60 @@ public class Users extends Module {
                         logger.log(Level.WARNING, "Can't execute JDBC statement", e);
                     }
                     bot.sendReply(msg, "Password for user " + msg.fromJID + " updated successfully.");
+                }
+            }
+        } else if (msg.command.equals("set_nick")) {
+            if (msg.fromJID == null) {
+                bot.sendReply(msg, "Error: can't determinate your real JID.");
+            } else if ((msg.commandArgs == null) || msg.commandArgs.equals("")) {
+                bot.sendReply(msg, "Error: nick can't be empty.");
+            } else {
+                String password = null;
+                try {
+                    synchronized (dbDriver) {
+                        connectToDB();
+                        select.setString(1, msg.fromJID);
+                        ResultSet rs = select.executeQuery();
+                        if (rs.next()) {
+                            password = rs.getString(1);
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                }
+                if (password == null) {
+                    bot.sendReply(msg, "Error: you aren't registred.");
+                } else {
+                    String jid = null;
+                    try {
+                        synchronized (dbDriver) {
+                            connectToDB();
+                            selectByNick.setString(1, msg.commandArgs);
+                            ResultSet rs = selectByNick.executeQuery();
+                            if (rs.next()) {
+                                jid = rs.getString(1);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                    }
+                    if (jid == null) {
+                        try {
+                            synchronized (dbDriver) {
+                                connectToDB();
+                                updateNick.setString(1, msg.commandArgs);
+                                updateNick.setString(2, msg.fromJID);
+                                updateNick.executeUpdate();
+                            }
+                        } catch (Exception e) {
+                            logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                        }
+                        bot.sendReply(msg, "Nickname of user " + msg.fromJID + " changed to " + msg.commandArgs);
+                    } else if (jid.equalsIgnoreCase(msg.fromJID)) {
+                        bot.sendReply(msg, "Error: user " + msg.fromJID + " already has same nick.");
+                    } else {
+                        bot.sendReply(msg, "Error: nick " + msg.commandArgs + " already registered for another user.");
+                    }
                 }
             }
         }

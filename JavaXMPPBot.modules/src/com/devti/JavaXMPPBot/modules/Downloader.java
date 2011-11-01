@@ -562,7 +562,7 @@ class DownloaderThread extends Thread {
                             if (isntDuplicate) {
                                 String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
                                 String newFilepath = downloader.storeTo + File.separator + newFilename;
-                                downloader.addFile(md5sum, message.from, url, newFilename, tags);
+                                downloader.addFile(md5sum, message.fromJID, url, newFilename, tags);
                                 hasBeenAdded = true;
                                 if (file.renameTo(new File(newFilepath))) {
                                     logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
