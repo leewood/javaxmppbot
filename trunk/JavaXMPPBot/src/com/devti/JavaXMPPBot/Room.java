@@ -20,44 +20,86 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import org.jivesoftware.smack.Connection;
+import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.packet.Packet;
 import org.jivesoftware.smackx.muc.DiscussionHistory;
 import org.jivesoftware.smackx.muc.MultiUserChat;
+
+
+
+class ParticipantListener implements PacketListener {
+    
+    private final Room room;
+
+    public ParticipantListener(Room room) {
+        this.room = room;
+    }
+
+    @Override
+    public void processPacket(Packet packet) {
+        room.parseOccupants();
+    }
+    
+}
 
 public class Room extends MultiUserChat {
 
     private boolean enabled;
+    protected final Map<String, String> realJIDs;
+    private final ParticipantListener participantListener;
 
     public Room(Connection connection, String room) {
         super(connection, room);
         enabled = false;
+        realJIDs = Collections.synchronizedMap(new HashMap<String, String>());
+        participantListener = new ParticipantListener(this);
+    }
+
+    public void parseOccupants() {
+        realJIDs.clear();
+        Iterator<String> occupants = super.getOccupants();
+        while (occupants.hasNext()) {
+            String occupant = occupants.next();
+            realJIDs.put(occupant, super.getOccupant(occupant).getJid());
+        }
     }
 
     @Override
     public void join(String nickname) throws XMPPException {
         super.join(nickname);
+        parseOccupants();
+        super.addParticipantListener(participantListener);
         enabled = true;
     }
 
     @Override
     public void join(String nickname, String password) throws XMPPException {
         super.join(nickname, password);
+        parseOccupants();
+        super.addParticipantListener(participantListener);
         enabled = true;
     }
 
     @Override
     public synchronized void join(String nickname, String password, DiscussionHistory history, long timeout) throws XMPPException {
         super.join(nickname, password, history, timeout);
+        parseOccupants();
+        super.addParticipantListener(participantListener);
         enabled = true;
     }
 
     @Override
     public synchronized void leave() {
         enabled = false;
+        super.removeParticipantListener(participantListener);
         super.leave();
     }
 
@@ -65,4 +107,7 @@ public class Room extends MultiUserChat {
         return enabled;
     }
 
+    public String getRealJID(String jid) {
+        return realJIDs.get(jid);
+    }
 }
