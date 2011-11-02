@@ -83,6 +83,7 @@ public class Downloader extends Module {
     protected final String storeTo;
     protected final String filenameFormat;
     protected final String dupReplyFormat;
+    protected final boolean saveRealJID;
 
     private final String[] tags;
     private final boolean includeTags;
@@ -101,6 +102,7 @@ public class Downloader extends Module {
         storeTo = bot.getProperty("modules.Downloader.store-to",  System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
         filenameFormat = bot.getProperty("modules.Downloader.filename-format",  "%ts_%s%s");
         dupReplyFormat = bot.getProperty("modules.Downloader.dup-reply", "%s is a duplicate of %s (%s) posted at %s by %s");
+        saveRealJID = bot.getProperty("modules.Downloader.save-real-jid", "no").equalsIgnoreCase("yes");
         extensionsMap =  new HashMap<String, String>();
         if (bot.getProperty("modules.Downloader.extensions-map") != null) {
             String[] a = bot.getProperty("modules.Downloader.extensions-map").split(";");
@@ -562,7 +564,13 @@ class DownloaderThread extends Thread {
                             if (isntDuplicate) {
                                 String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
                                 String newFilepath = downloader.storeTo + File.separator + newFilename;
-                                downloader.addFile(md5sum, message.fromJID, url, newFilename, tags);
+                                String from;
+                                if (downloader.saveRealJID) {
+                                    from = message.fromJID;
+                                } else {
+                                    from = message.from;
+                                }
+                                downloader.addFile(md5sum, from, url, newFilename, tags);
                                 hasBeenAdded = true;
                                 if (file.renameTo(new File(newFilepath))) {
                                     logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
