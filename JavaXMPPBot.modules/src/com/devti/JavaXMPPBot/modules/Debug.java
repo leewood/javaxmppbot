@@ -27,6 +27,8 @@ import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Command;
+import java.util.Enumeration;
+import java.util.Properties;
 import java.util.logging.Level;
 
 public class Debug extends Module {
@@ -36,6 +38,7 @@ public class Debug extends Module {
         try {
             bot.registerCommand(new Command("threads", "list threads of this bot", true, this));
             bot.registerCommand(new Command("runtime", "show runtime information", true, this));
+            bot.registerCommand(new Command("system", "show system properties", true, this));
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't register a command.", e);
         }
@@ -45,25 +48,32 @@ public class Debug extends Module {
     public void processCommand(Message msg) {
         // List active threads
         if (msg.command.equals("threads")) {
-                Thread[] threads = new Thread[Thread.activeCount()];
-                int threadsCount = Thread.enumerate(threads);
-                String message = new String();
-                for (int i = 0; i < threadsCount; i++) {
-                    message += (i + 1) + ") " + threads[i].getName() + " [" + threads[i].getState().toString() + "]\n";
-                }
-                bot.sendReply(msg, message);
-        }
-        // Show runtime information
-        if (msg.command.equals("runtime")) {
-                Runtime runtime = Runtime.getRuntime();
-                String message = String.format(
+            Thread[] threads = new Thread[Thread.activeCount()];
+            int threadsCount = Thread.enumerate(threads);
+            String message = new String();
+            for (int i = 0; i < threadsCount; i++) {
+                message += (i + 1) + ") " + threads[i].getName() + " [" + threads[i].getState().toString() + "]\n";
+            }
+            bot.sendReply(msg, message);
+            // Show runtime information
+        } else if (msg.command.equals("runtime")) {
+            Runtime runtime = Runtime.getRuntime();
+            String message = String.format(
                     "Available processors: %d\nAvailable memory: %,d bytes\nTotal memory: %,d bytes\nMax memory: %,d bytes",
                     runtime.availableProcessors(),
                     runtime.freeMemory(),
                     runtime.totalMemory(),
-                    runtime.maxMemory()
-                );
-                bot.sendReply(msg, message);
+                    runtime.maxMemory());
+            bot.sendReply(msg, message);
+        } else if (msg.command.equals("system")) {
+            String message = "";
+            Properties properties = System.getProperties();
+            Enumeration keys = properties.keys();
+            while (keys.hasMoreElements()) {
+                String key = (String)keys.nextElement();
+                message += key + "=" + properties.getProperty(key) + "\n";
+            }
+            bot.sendReply(msg, message);
         }
     }
 

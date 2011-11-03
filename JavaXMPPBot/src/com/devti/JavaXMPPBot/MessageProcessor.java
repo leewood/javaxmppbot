@@ -54,15 +54,13 @@ public class MessageProcessor extends Thread {
                 type = xmppMessage.getAttributes().getNamedItem("type").getTextContent();
             }
             String body = "";
-            String nick = null;
             NodeList nl = xmppMessage.getChildNodes();
             for (int i = 0; i < nl.getLength(); i++) {
                 if (nl.item(i).getNodeName().equals("body")) {
                     if (nl.item(i).getAttributes().getNamedItem("xmlns") == null) {
                         body = nl.item(i).getTextContent();
+                        break;
                     }
-                } else if (nl.item(i).getNodeName().equals("nick")) {
-                    nick = nl.item(i).getTextContent();
                 }
             }
             // If sender isn't in ignore list
@@ -97,11 +95,7 @@ public class MessageProcessor extends Thread {
                 // Group chat message
                 } else {
                     message.nick = StringUtils.parseResource(message.from);
-                    if (nick == null) {
-                        message.fromJID = StringUtils.parseBareAddress(bot.getRoom(message.room).getRealJID(message.from));
-                    } else {
-                        message.fromJID = nick;
-                    }
+                    message.fromJID = StringUtils.parseBareAddress(bot.getRoom(message.room).getRealJID(message.from));
                     message.isForMe = (message.body.startsWith(bot.getNickname(message.room)));
                 }
                 // Ignore self messages and process message through all modules
