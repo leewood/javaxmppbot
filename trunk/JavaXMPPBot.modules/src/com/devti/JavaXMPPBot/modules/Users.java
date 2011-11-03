@@ -38,12 +38,15 @@ import java.security.MessageDigest;
 public class Users extends Module {
     
     private Connection connection;
-    private PreparedStatement create;
-    private PreparedStatement insert;
-    private PreparedStatement select;
-    private PreparedStatement selectByNick;
-    private PreparedStatement update;
-    private PreparedStatement updateNick;
+    private PreparedStatement psCreate;
+    private PreparedStatement psInsert;
+    private PreparedStatement psSelect;
+    private PreparedStatement psSelectByNick;
+    private PreparedStatement psUpdate;
+    private PreparedStatement psUpdateNick;
+    private PreparedStatement psSelectUnapproved;
+    private PreparedStatement psApprove;
+    private PreparedStatement psApproveAll;
     
     private final String dbUrl;
     private final String dbDriver;
@@ -77,6 +80,9 @@ public class Users extends Module {
         try {
             bot.registerCommand(new Command("register", "user registration", false, this));
             bot.registerCommand(new Command("set_nick", "change your nickname", false, this));
+            bot.registerCommand(new Command("list_unapproved", "list unapproved user registrations", true, this));
+            bot.registerCommand(new Command("approve", "approve user registration", true, this));
+            bot.registerCommand(new Command("approve_all", "approve all unaprroved user registration", true, this));
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't register a command.", e);
         }
@@ -97,13 +103,16 @@ public class Users extends Module {
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        create = connection.prepareStatement(bot.getProperty("modules.Users.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_users` (`jid` TEXT, `nickname` TEXT, `password` TEXT)"));
-        create.execute();
-        insert = connection.prepareStatement(bot.getProperty("modules.Users.insert", "INSERT INTO `javaxmppbot_users` (`jid`, `nickname`, `password`) VALUES (?, ?, ?)"));
-        select = connection.prepareStatement(bot.getProperty("modules.Users.select", "SELECT `password` FROM `javaxmppbot_users` WHERE `jid`=? LIMIT 1"));
-        selectByNick = connection.prepareStatement(bot.getProperty("modules.Users.select-by-nick", "SELECT `jid` FROM `javaxmppbot_users` WHERE `nickname`=? LIMIT 1"));
-        update = connection.prepareStatement(bot.getProperty("modules.Users.update", "UPDATE `javaxmppbot_users` SET `password`=? WHERE `jid`=?"));
-        updateNick = connection.prepareStatement(bot.getProperty("modules.Users.update-nick", "UPDATE `javaxmppbot_users` SET `nickname`=? WHERE `jid`=?"));
+        psCreate = connection.prepareStatement(bot.getProperty("modules.Users.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_users` (`jid` TEXT, `nickname` TEXT, `password` TEXT, `approved` TINYINT DEFAULT '0')"));
+        psCreate.execute();
+        psInsert = connection.prepareStatement(bot.getProperty("modules.Users.insert", "INSERT INTO `javaxmppbot_users` (`jid`, `nickname`, `password`) VALUES (?, ?, ?)"));
+        psSelect = connection.prepareStatement(bot.getProperty("modules.Users.select", "SELECT `password` FROM `javaxmppbot_users` WHERE `jid`=? LIMIT 1"));
+        psSelectByNick = connection.prepareStatement(bot.getProperty("modules.Users.select-by-nick", "SELECT `jid` FROM `javaxmppbot_users` WHERE `nickname`=? LIMIT 1"));
+        psUpdate = connection.prepareStatement(bot.getProperty("modules.Users.update", "UPDATE `javaxmppbot_users` SET `password`=? WHERE `jid`=?"));
+        psUpdateNick = connection.prepareStatement(bot.getProperty("modules.Users.update-nick", "UPDATE `javaxmppbot_users` SET `nickname`=? WHERE `jid`=?"));
+        psSelectUnapproved = connection.prepareStatement(bot.getProperty("modules.Users.select-unapproved", "SELECT `jid`, `nickname` FROM `javaxmppbot_users` WHERE `approved`=0"));
+        psApprove = connection.prepareStatement(bot.getProperty("modules.Users.update-approve", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `jid`=? AND `approved`=0"));
+        psApproveAll = connection.prepareStatement(bot.getProperty("modules.Users.update-approve-all", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `approved`=0"));
     }
     
     @Override
@@ -118,8 +127,8 @@ public class Users extends Module {
                 try {
                     synchronized (dbDriver) {
                         connectToDB();
-                        select.setString(1, msg.fromJID);
-                        ResultSet rs = select.executeQuery();
+                        psSelect.setString(1, msg.fromJID);
+                        ResultSet rs = psSelect.executeQuery();
                         if (rs.next()) {
                             password = rs.getString(1);
                         }
@@ -138,10 +147,10 @@ public class Users extends Module {
                     try {
                         synchronized (dbDriver) {
                             connectToDB();
-                            insert.setString(1, msg.fromJID);
-                            insert.setString(2, msg.fromJID);
-                            insert.setString(3, md5sum);
-                            insert.executeUpdate();
+                            psInsert.setString(1, msg.fromJID);
+                            psInsert.setString(2, msg.fromJID);
+                            psInsert.setString(3, md5sum);
+                            psInsert.executeUpdate();
                         }
                     } catch (Exception e) {
                         logger.log(Level.WARNING, "Can't execute JDBC statement", e);
@@ -151,9 +160,9 @@ public class Users extends Module {
                     try {
                         synchronized (dbDriver) {
                             connectToDB();
-                            update.setString(1, md5sum);
-                            update.setString(2, msg.fromJID);
-                            update.executeUpdate();
+                            psUpdate.setString(1, md5sum);
+                            psUpdate.setString(2, msg.fromJID);
+                            psUpdate.executeUpdate();
                         }
                     } catch (Exception e) {
                         logger.log(Level.WARNING, "Can't execute JDBC statement", e);
@@ -171,8 +180,8 @@ public class Users extends Module {
                 try {
                     synchronized (dbDriver) {
                         connectToDB();
-                        select.setString(1, msg.fromJID);
-                        ResultSet rs = select.executeQuery();
+                        psSelect.setString(1, msg.fromJID);
+                        ResultSet rs = psSelect.executeQuery();
                         if (rs.next()) {
                             password = rs.getString(1);
                         }
@@ -181,14 +190,14 @@ public class Users extends Module {
                     logger.log(Level.WARNING, "Can't execute JDBC statement", e);
                 }
                 if (password == null) {
-                    bot.sendReply(msg, "Error: you aren't registred.");
+                    bot.sendReply(msg, "Error: you aren't registered.");
                 } else {
                     String jid = null;
                     try {
                         synchronized (dbDriver) {
                             connectToDB();
-                            selectByNick.setString(1, msg.commandArgs);
-                            ResultSet rs = selectByNick.executeQuery();
+                            psSelectByNick.setString(1, msg.commandArgs);
+                            ResultSet rs = psSelectByNick.executeQuery();
                             if (rs.next()) {
                                 jid = rs.getString(1);
                             }
@@ -200,9 +209,9 @@ public class Users extends Module {
                         try {
                             synchronized (dbDriver) {
                                 connectToDB();
-                                updateNick.setString(1, msg.commandArgs);
-                                updateNick.setString(2, msg.fromJID);
-                                updateNick.executeUpdate();
+                                psUpdateNick.setString(1, msg.commandArgs);
+                                psUpdateNick.setString(2, msg.fromJID);
+                                psUpdateNick.executeUpdate();
                             }
                         } catch (Exception e) {
                             logger.log(Level.WARNING, "Can't execute JDBC statement", e);
@@ -214,6 +223,45 @@ public class Users extends Module {
                         bot.sendReply(msg, "Error: nick " + msg.commandArgs + " already registered for another user.");
                     }
                 }
+            }
+        } else if (msg.command.equals("list_unapproved")) {
+            String message = "";
+            try {
+                synchronized (dbDriver) {
+                    connectToDB();
+                    ResultSet rs = psSelectUnapproved.executeQuery();
+                    while (rs.next()) {
+                        message += "\n" + rs.getString(1) + " (" + rs.getString(2) + ")";
+                    }
+                }
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+            }
+            if (message.isEmpty()) {
+                bot.sendReply(msg, "There aren't unapproved user registrations.");
+            } else {
+                bot.sendReply(msg, "Unapproved users:" + message);
+            }
+        } else if (msg.command.equals("approve")) {
+            try {
+                synchronized (dbDriver) {
+                    connectToDB();
+                    psApprove.setString(1, msg.commandArgs);
+                    psApprove.executeUpdate();
+                }
+                bot.sendReply(msg, "Registration for user '" + msg.commandArgs + "' has been approved.");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+            }
+        } else if (msg.command.equals("approve_all")) {
+            try {
+                synchronized (dbDriver) {
+                    connectToDB();
+                    psApproveAll.executeUpdate();
+                }
+                bot.sendReply(msg, "All unapproved user registrations have been approved.");
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
             }
         }
     }
