@@ -36,7 +36,7 @@ import org.xml.sax.InputSource;
 
 public class PacketProcessor implements PacketListener {
 
-    private static final Logger logger = Logger.getLogger(PacketProcessor.class.getName());
+    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
     private Bot bot;
 
     public PacketProcessor(Bot bot) {

@@ -413,7 +413,7 @@ class HexCodec {
 
 class DownloaderThread extends Thread {
 
-    private static final Logger logger = Logger.getLogger(Downloader.class.getName());
+    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
     private Bot bot;
     private Downloader downloader;
     private String url;

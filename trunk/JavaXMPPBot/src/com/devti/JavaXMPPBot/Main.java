@@ -24,9 +24,12 @@
 package com.devti.JavaXMPPBot;
 
 import java.io.File;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Main {
 
+    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
     private static XMPPBot bot;
     private static final String defaultConfigFile = ".JavaXMPPBot.cfg";
     private static String configFile;
@@ -41,11 +44,10 @@ public class Main {
             System.err.println("Usage: java -jar JavaXMPPBot.jar <CONFIG_FILE>");
             System.exit(1);
         }
-
-        // Load and connect bot
+        
+        // Load bot
         try {
             bot = new XMPPBot(configFile);
-            bot.connect();
         } catch (Exception e) {
             System.err.println("Can't load bot with config file '" +
                                configFile + "': " +
@@ -53,12 +55,19 @@ public class Main {
             System.exit(1);
         }
 
+        // Connect bot
+        try {
+            bot.connect();
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Can't perform connection to the XMPP server: {0}", e.getLocalizedMessage());
+            System.exit(1);
+        }
+
         // Wait for all bots exit
         try {
             bot.join();
         } catch (Exception e) {
-            System.err.println("Error occured during waiting for the bot: " +
-                               e.getLocalizedMessage());
+            logger.log(Level.SEVERE, "Error occured during waiting for the bot: {0}", e.getLocalizedMessage());
             System.exit(1);
         }
 
