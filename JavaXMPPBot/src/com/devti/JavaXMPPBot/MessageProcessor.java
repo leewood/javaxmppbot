@@ -32,7 +32,7 @@ import org.jivesoftware.smack.util.StringUtils;
 
 public class MessageProcessor extends Thread {
 
-    private static final Logger logger = Logger.getLogger(MessageProcessor.class.getName());
+    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
     Node xmppMessage;
     Bot bot;
 

@@ -27,7 +27,7 @@ import java.util.logging.Logger;
 
 public class Module {
 
-    protected static final Logger logger = Logger.getLogger(Module.class.getName());
+    protected static final Logger logger = Logger.getLogger("JavaXMPPBot");
     protected Bot bot;
     protected Command[] commands;
 

@@ -39,6 +39,9 @@ import java.net.URLClassLoader;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.FileHandler;
+import java.util.logging.Handler;
+import java.util.logging.SimpleFormatter;
 
 class ConnectionListener implements org.jivesoftware.smack.ConnectionListener {
 
@@ -71,9 +74,24 @@ class ConnectionListener implements org.jivesoftware.smack.ConnectionListener {
     }
 }
 
+
+class ShutdownHandler extends Thread {
+    
+    private final Bot bot;
+
+    public ShutdownHandler(Bot bot) {
+        this.bot = bot;
+    }
+    
+    public void run() {
+        bot.disconnect();
+    }
+
+}
+
 public final class XMPPBot extends Thread implements Bot {
 
-    private static final Logger logger = Logger.getLogger(XMPPBot.class.getName());
+    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
     private int connectionRetries;
     private int connectionInterval;
     private int silenceTime;
@@ -95,7 +113,6 @@ public final class XMPPBot extends Thread implements Bot {
 
     public XMPPBot(String configFile) throws Exception {
         this.setName(this.getClass().getName() + "(" + configFile + ")");
-        logger.log(Level.INFO, "Starting bot with config {0}", configFile);
         enabled = true;
         roomsShouldBeReconnected = false;
         config = configFile;
@@ -106,6 +123,7 @@ public final class XMPPBot extends Thread implements Bot {
         properties = new Properties();
         ignoreList = new ArrayList<String>();
         reloadConfig();
+        logger.log(Level.INFO, "Starting bot with config {0}", configFile);
         outgoingMessageQueue = new ArrayList<Message>();
         connectionConfiguration = new ConnectionConfiguration(properties.getProperty("server"),
                 new Integer(properties.getProperty("port")),
@@ -130,6 +148,7 @@ public final class XMPPBot extends Thread implements Bot {
 
         connection = new XMPPConnection(connectionConfiguration);
 
+        Runtime.getRuntime().addShutdownHook(new ShutdownHandler(this));
     }
 
     private void addUrls(List<URL> urls, File file) throws Exception {
@@ -200,6 +219,9 @@ public final class XMPPBot extends Thread implements Bot {
         if (newProperties.getProperty("sasl") == null) {
             newProperties.setProperty("sasl", "yes");
         }
+        if (newProperties.getProperty("log") == null) {
+            newProperties.setProperty("log", "%h/JavaXMPPBot/JavaXMPPBot.log");
+        }
 
         // Load array newProperties
         if (newProperties.getProperty("owners") != null) {
@@ -227,6 +249,16 @@ public final class XMPPBot extends Thread implements Bot {
         // New config is OK, load it
         properties = newProperties;
 
+        // Configure logger
+        Handler[] handlers = logger.getHandlers();
+        for (int i = 0; i < handlers.length; i++) {
+            logger.removeHandler(handlers[i]);
+            handlers[i].close();
+        }
+        FileHandler fileHandler = new FileHandler(properties.getProperty("log"));
+        fileHandler.setFormatter(new SimpleFormatter());
+        logger.addHandler(fileHandler);
+        
         // Reload modules
         if (!properties.getProperty("modules", "").equals("")) {
             List<URL> urls = new ArrayList<URL>();
@@ -312,6 +344,7 @@ public final class XMPPBot extends Thread implements Bot {
 
     @Override
     public void disconnect() {
+        logger.info("Disconnection has been initiated.");
         try {
             if (connection.isConnected()) {
                 rooms.clear();
