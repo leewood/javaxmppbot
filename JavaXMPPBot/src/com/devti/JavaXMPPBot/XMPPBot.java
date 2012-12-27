@@ -22,26 +22,26 @@
  */
 package com.devti.JavaXMPPBot;
 
-import java.util.Arrays;
-import java.util.logging.Logger;
-import java.util.logging.Level;
-import java.util.Properties;
-import org.jivesoftware.smack.XMPPConnection;
-import org.jivesoftware.smack.ConnectionConfiguration;
-import org.jivesoftware.smack.proxy.ProxyInfo;
-import org.jivesoftware.smack.proxy.ProxyInfo.ProxyType;
-import java.util.ArrayList;
-import java.util.List;
 import java.io.File;
 import java.io.FileReader;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.logging.FileHandler;
 import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
+import org.jivesoftware.smack.ConnectionConfiguration;
+import org.jivesoftware.smack.XMPPConnection;
+import org.jivesoftware.smack.proxy.ProxyInfo;
+import org.jivesoftware.smack.proxy.ProxyInfo.ProxyType;
 
 class ConnectionListener implements org.jivesoftware.smack.ConnectionListener {
 
@@ -83,12 +83,16 @@ class ShutdownHandler extends Thread {
         this.bot = bot;
     }
     
+    @Override
     public void run() {
         bot.disconnect();
     }
 
 }
 
+/** 
+ * @author Mikhail Telnov <michael.telnov@gmail.com>
+ */
 public final class XMPPBot extends Thread implements Bot {
 
     private static final Logger logger = Logger.getLogger("JavaXMPPBot");
@@ -111,6 +115,11 @@ public final class XMPPBot extends Thread implements Bot {
     private final List<Message> outgoingMessageQueue;
     private boolean roomsShouldBeReconnected;
 
+    /**
+     *
+     * @param configFile
+     * @throws Exception
+     */
     public XMPPBot(String configFile) throws Exception {
         this.setName(this.getClass().getName() + "(" + configFile + ")");
         enabled = true;

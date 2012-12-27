@@ -23,40 +23,187 @@
 
 package com.devti.JavaXMPPBot;
 
+/**
+ * Main interface to interact with a bot.
+ * 
+ * @author Mikhail Telnov <michael.telnov@gmail.com>
+ */
 public interface Bot {
 
+    /**
+     * Re-reads the configuration file and reloads all modules.
+     * 
+     * @throws Exception
+     */
     public void reloadConfig() throws Exception;
 
+    /**
+     * Returns the JID of the bot.
+     * 
+     * @return JID of the bot
+     */
     public String getJID();
+    
+    /**
+     * Returns the name of the XMPP resource.
+     * 
+     * @return the name of the XMPP resource
+     */
     public String getResource();
+    
+    /**
+     * Returns path to the configuration file.
+     * 
+     * @return path to the configuration file
+     */
     public String getConfigPath();
 
+    /**
+     * Initiates connection to the XMPP server.
+     * 
+     * @throws Exception
+     */
     public void connect() throws Exception;
+    
+    /**
+     * Disconnects from the XMPP server.
+     */
     public void disconnect();
 
+    /**
+     * Joins to the specified XMPP conference room.
+     * 
+     * @param room the name of the XMPP conference room to join (e.g. 'room-name@conference.example.com')
+     */
     public void joinRoom(String room);
+    
+    /**
+     * Leaves specified XMPP conference room.
+     * 
+     * @param room the name of the XMPP conference room to leave (e.g. 'room-name@conference.example.com')
+     */
     public void leaveRoom(String room);
+    
+    /**
+     * Leaves and then joins to connected XMPP conference rooms.
+     */
     public void rejoinToRooms();
+    
+    /**
+     * Returns list of joined XMPP conference rooms.
+     * 
+     * @return list of joined XMPP conference rooms
+     */
     public String[] getRooms();
+    
+    /**
+     * Returns the {@link Room} object for the specified room name (e.g. 'room-name@conference.example.com').
+     * 
+     * @param room the name of the XMPP conference room (e.g. 'room-name@conference.example.com')
+     * @return {@link Room} object
+     */
     public Room getRoom(String room);
+    
+    /**
+     * Returns the nick name of the bot at the specified XMPP conference room.
+     * @param room the name of the XMPP conference room (e.g. 'room-name@conference.example.com')
+     * @return the nick name of the bot at the specified XMPP conference room
+     */
     public String getNickname(String room);
 
+    /**
+     * Returns list of loaded modules.
+     * 
+     * @return list of loaded modules
+     */
     public String[] getModules();
+    
+    /**
+     * Returns the {@link Module} object specified by its name.
+     * 
+     * @param name the name of the module
+     * @return {@link Module Module} object
+     */
     public Module getModule(String name);
 
+    /**
+     * Registers the {@link Command} for this bot.
+     * 
+     * @param command {@link Command} object
+     * @throws Exception
+     */
     public void registerCommand(Command command) throws Exception;
+    
+    /**
+     * Returns the {@link Command} object specified by its name.
+     * 
+     * @param command the name of the command
+     * @return {@link Command} object
+     */
     public Command getCommand(String command);
     
+    /**
+     * Registers the message processor of the module for this bot.
+     * 
+     * @param module {@link Module} object
+     * @throws Exception
+     */
     public void registerMessageProcessor(Module module) throws Exception;
+    
+    /**
+     * Returns list of {@link Module} objects with registered message processors.
+     * 
+     * @return list of {@link Module} objects
+     */
     public Module[] getMessageProcessors();
 
+    /**
+     * Returns true if the specified JID is the bot owner.
+     * 
+     * @param jid JID
+     * @return true if the specified JID is the bot owner
+     */
     public boolean isOwner(String jid);
+    
+    /**
+     * Returns true of the specified JID is in the ignore list.
+     * 
+     * @param jid JID
+     * @return true of the specified JID is in the ignore list
+     */
     public boolean isIgnored(String jid);
 
+    /**
+     * Returns value of the specified bot property.
+     * 
+     * @param key the name of the bot property
+     * @return value of the bot property
+     */
     public String getProperty(String key);
+    
+    /**
+     * Returns value of the specified bot property.
+     * If the bot property isn't defined then returns specified default value.
+     * 
+     * @param key the name of the bot property
+     * @param defaultValue default value for the bot property
+     * @return value of the bot property
+     */
     public String getProperty(String key, String defaultValue);
 
+    /**
+     * Sends the message.
+     * 
+     * @param message {@link Message} object
+     */
     public void sendMessage(Message message);
+    
+    /**
+     * Sends reply for the specified message.
+     * 
+     * @param originalMessage {@link Message} object
+     * @param reply text for the reply message
+     */
     public void sendReply(Message originalMessage, String reply);
 
 }
