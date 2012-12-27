@@ -480,138 +480,143 @@ class DownloaderThread extends Thread {
         }
         String type = connection.getContentType();
         if (type != null) {
-            if (acceptableTypes.contains(type)) {
-                logger.log(Level.INFO, "OK! Type of {0} is {1}.", new Object[]{url, type});
-                Integer sizeLimit = new Integer(bot.getProperty("modules.Downloader.size-limit", "0"));
-                if ((sizeLimit == 0) || connection.getContentLength() < sizeLimit) {
-                    BufferedInputStream in = null;
-                    BufferedOutputStream out = null;
-                    File file = null;
-                    String md5sum = null;
-                    boolean hasBeenAdded = false;
-                    try {
-                        MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-                        messageDigest.reset();
-                        file = File.createTempFile("javaxmppbot_Downloader_", ".tmp", new File(downloader.storeTo));
-                        String tmpFilename = file.getAbsolutePath();
-                        in = new BufferedInputStream(new DigestInputStream(connection.getInputStream(), messageDigest));
-                        out = new BufferedOutputStream(new FileOutputStream(file));
-                        int i;
-                        int count = 0;
-                        while ((i = in.read()) != -1)
-                        {
-                            count++;
-                            if ((sizeLimit > 0) && (count > sizeLimit)) {
-                               throw new Exception("File is larger then limit (" + sizeLimit.toString() + " bytes)");
-                            }
-                            out.write(i);
-                        }
-                        out.close();
-
-                        // Check real file type
-                        URLConnection fileConnection = file.toURI().toURL().openConnection();
-                        String realFileType = fileConnection.getContentType();
-                        fileConnection.getInputStream().close();
-                        if (!acceptableTypes.contains(realFileType)) {
-                            throw new Exception("Real file type (" + realFileType + ") isn't acceptable");
-                        }
-                        logger.log(Level.INFO, "OK! Real file type is {0}.", realFileType);
-
-                        // Get extension if it is defined for this file type
-                        String extension = downloader.getExtension(realFileType);
-
-                        md5sum = HexCodec.bytesToHex(messageDigest.digest());
-                        logger.log(Level.INFO, "OK! File {0} saved temporary as {1} MD5={2}.", new Object[]{url, tmpFilename, md5sum});
-                        String[] dup = downloader.searchDup(md5sum);
-                        if (dup != null) {
-                            // This is duplicate, so send reply and delete temporary file
-                            logger.log(Level.INFO, "File {0} ({1}) is a duplicate.", new Object[]{url, md5sum.toString()});
-                            String from = dup[3];
-                            if (message.type == Message.Type.groupchat) {
-                                if (from.startsWith(message.room + "/")) {
-                                    from = from.substring((message.room + "/").length());
-                                }
-
-                            }
-                            bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
-                        } else {
-                            // Try to compare with another images
-                            boolean isntDuplicate = true;
-                            byte[] signature;
-                            if (compareAsImages) {
-                                signature = downloader.createImageSignature(file);
-                                String sigDup = downloader.searchDupBySignature(signature);
-                                if (sigDup != null) {
-                                    // This is duplicate, so send reply
-                                    dup = downloader.searchDup(sigDup);
-                                    logger.log(Level.INFO, "File {0} ({1}) is a modified duplicate of {2}.", new Object[]{url, md5sum, sigDup});
-                                    String from = dup[3];
-                                    if (message.type == Message.Type.groupchat) {
-                                        if (from.startsWith(message.room + "/")) {
-                                            from = from.substring((message.room + "/").length());
-                                        }
-
-                                    }
-                                    bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
-                                    isntDuplicate = false;
-                                } else {
-                                    downloader.addImageSignature(md5sum, signature);
-                                    hasBeenAdded = true;
-                                }
-                            }
-
-                            // This isn't duplicate, save it
-                            if (isntDuplicate) {
-                                String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
-                                String newFilepath = downloader.storeTo + File.separator + newFilename;
-                                String from;
-                                if (downloader.saveRealJID) {
-                                    from = message.fromJID;
-                                } else {
-                                    from = message.from;
-                                }
-                                downloader.addFile(md5sum, from, url, newFilename, tags);
-                                hasBeenAdded = true;
-                                if (file.renameTo(new File(newFilepath))) {
-                                    logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
-                                } else {
-                                    throw new Exception( "Can't rename file '" + tmpFilename + "' to '" + newFilepath + "'");
-                                }
-                                file = null;
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.log(Level.WARNING, "An error occurred during processing file '" + url + "'", e);
-                        if (hasBeenAdded) {
-                            try {
-                                downloader.deleteFile(md5sum);
-                            } catch (Exception e2) {
-                                logger.log(Level.WARNING, "Can't delete records for md5='" + md5sum + "'", e);
-                            }
-                        }
-                    } finally {
+            boolean acceptable = false;
+            String[] types = type.split(";");
+            for (int j = 0; j < types.length; j++) {
+                if (acceptableTypes.contains(types[j])) {
+                    logger.log(Level.INFO, "OK! Type of {0} is {1}.", new Object[]{url, types[j]});
+                    Integer sizeLimit = new Integer(bot.getProperty("modules.Downloader.size-limit", "0"));
+                    if ((sizeLimit == 0) || connection.getContentLength() < sizeLimit) {
+                        BufferedInputStream in = null;
+                        BufferedOutputStream out = null;
+                        File file = null;
+                        String md5sum = null;
+                        boolean hasBeenAdded = false;
                         try {
-                            if (in != null) {
-                                in.close();
+                            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+                            messageDigest.reset();
+                            file = File.createTempFile("javaxmppbot_Downloader_", ".tmp", new File(downloader.storeTo));
+                            String tmpFilename = file.getAbsolutePath();
+                            in = new BufferedInputStream(new DigestInputStream(connection.getInputStream(), messageDigest));
+                            out = new BufferedOutputStream(new FileOutputStream(file));
+                            int i;
+                            int count = 0;
+                            while ((i = in.read()) != -1) {
+                                count++;
+                                if ((sizeLimit > 0) && (count > sizeLimit)) {
+                                    throw new Exception("File is larger then limit (" + sizeLimit.toString() + " bytes)");
+                                }
+                                out.write(i);
                             }
-                            if (out != null) {
-                                out.close();
+                            out.close();
+
+                            // Check real file type
+                            URLConnection fileConnection = file.toURI().toURL().openConnection();
+                            String realFileType = fileConnection.getContentType();
+                            fileConnection.getInputStream().close();
+                            if (!acceptableTypes.contains(realFileType)) {
+                                throw new Exception("Real file type (" + realFileType + ") isn't acceptable");
                             }
-                            if (file != null) {
-                                file.delete();
+                            logger.log(Level.INFO, "OK! Real file type is {0}.", realFileType);
+
+                            // Get extension if it is defined for this file type
+                            String extension = downloader.getExtension(realFileType);
+
+                            md5sum = HexCodec.bytesToHex(messageDigest.digest());
+                            logger.log(Level.INFO, "OK! File {0} saved temporary as {1} MD5={2}.", new Object[]{url, tmpFilename, md5sum});
+                            String[] dup = downloader.searchDup(md5sum);
+                            if (dup != null) {
+                                // This is duplicate, so send reply and delete temporary file
+                                logger.log(Level.INFO, "File {0} ({1}) is a duplicate.", new Object[]{url, md5sum.toString()});
+                                String from = dup[3];
+                                if (message.type == Message.Type.groupchat) {
+                                    if (from.startsWith(message.room + "/")) {
+                                        from = from.substring((message.room + "/").length());
+                                    }
+
+                                }
+                                bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
+                            } else {
+                                // Try to compare with another images
+                                boolean isntDuplicate = true;
+                                byte[] signature;
+                                if (compareAsImages) {
+                                    signature = downloader.createImageSignature(file);
+                                    String sigDup = downloader.searchDupBySignature(signature);
+                                    if (sigDup != null) {
+                                        // This is duplicate, so send reply
+                                        dup = downloader.searchDup(sigDup);
+                                        logger.log(Level.INFO, "File {0} ({1}) is a modified duplicate of {2}.", new Object[]{url, md5sum, sigDup});
+                                        String from = dup[3];
+                                        if (message.type == Message.Type.groupchat) {
+                                            if (from.startsWith(message.room + "/")) {
+                                                from = from.substring((message.room + "/").length());
+                                            }
+
+                                        }
+                                        bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
+                                        isntDuplicate = false;
+                                    } else {
+                                        downloader.addImageSignature(md5sum, signature);
+                                        hasBeenAdded = true;
+                                    }
+                                }
+
+                                // This isn't duplicate, save it
+                                if (isntDuplicate) {
+                                    String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
+                                    String newFilepath = downloader.storeTo + File.separator + newFilename;
+                                    String from;
+                                    if (downloader.saveRealJID) {
+                                        from = message.fromJID;
+                                    } else {
+                                        from = message.from;
+                                    }
+                                    downloader.addFile(md5sum, from, url, newFilename, tags);
+                                    hasBeenAdded = true;
+                                    if (file.renameTo(new File(newFilepath))) {
+                                        logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
+                                    } else {
+                                        throw new Exception("Can't rename file '" + tmpFilename + "' to '" + newFilepath + "'");
+                                    }
+                                    file = null;
+                                }
                             }
                         } catch (Exception e) {
                             logger.log(Level.WARNING, "An error occurred during processing file '" + url + "'", e);
+                            if (hasBeenAdded) {
+                                try {
+                                    downloader.deleteFile(md5sum);
+                                } catch (Exception e2) {
+                                    logger.log(Level.WARNING, "Can't delete records for md5='" + md5sum + "'", e);
+                                }
+                            }
+                        } finally {
+                            try {
+                                if (in != null) {
+                                    in.close();
+                                }
+                                if (out != null) {
+                                    out.close();
+                                }
+                                if (file != null) {
+                                    file.delete();
+                                }
+                            } catch (Exception e) {
+                                logger.log(Level.WARNING, "An error occurred during processing file '" + url + "'", e);
+                            }
                         }
+                    } else {
+                        logger.log(Level.INFO, "Size of {0} ({1}) is bigger than allowed limit {2}.", new Object[]{url, connection.getContentLength(), bot.getProperty("modules.Downloader.size-limit")});
                     }
-                } else {
-                    logger.log(Level.INFO, "Size of {0} ({1}) is bigger than allowed limit {2}.", new Object[]{url, connection.getContentLength(), bot.getProperty("modules.Downloader.size-limit")});
+                    acceptable = true;
+                    break;
                 }
-            } else {
+            }
+            if (!acceptable) {
                 logger.log(Level.INFO, "Type of {0} isn''t acceptable ({1}).", new Object[]{url, type});
             }
         }
         connection.disconnect();
     }
-
 }
