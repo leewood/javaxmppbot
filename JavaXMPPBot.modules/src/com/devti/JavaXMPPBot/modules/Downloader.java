@@ -54,6 +54,10 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import javax.imageio.ImageIO;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 public class Downloader extends Module {
 
@@ -125,6 +129,37 @@ public class Downloader extends Module {
         int maxImageDistance = (int)Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
         signatureMaxDistance = (int)Math.round(maxImageDistance - maxImageDistance * minMatchPercent / 100);
         imageSignatures = new HashMap<String, byte[]>();
+        
+        // Disable SSL certificate validation
+        if (bot.getProperty("modules.Downloader.disable-ssl-cert-validation", "yes").equalsIgnoreCase("yes")) {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                new X509TrustManager() {
+                    @Override
+                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+                        return null;
+                    }
+
+                    @Override
+                    public void checkClientTrusted(
+                            java.security.cert.X509Certificate[] certs, String authType) {
+                    }
+
+                    @Override
+                    public void checkServerTrusted(
+                            java.security.cert.X509Certificate[] certs, String authType) {
+                    }
+                }
+            };
+
+            // Install the all-trusting trust manager
+            try {
+                SSLContext sc = SSLContext.getInstance("SSL");
+                sc.init(null, trustAllCerts, new java.security.SecureRandom());
+                HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Can't change trust manager for HTTPS connections", e);
+            }
+        }
 
         // Create storage directorty if it doesn't exist
         File dir = new File(storeTo);
