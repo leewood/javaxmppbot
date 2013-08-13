@@ -23,29 +23,31 @@
 
 package com.devti.JavaXMPPBot.modules;
 
+import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
-import com.devti.JavaXMPPBot.Bot;
-import java.util.logging.Level;
 import java.io.File;
+import java.util.Map;
+import java.util.logging.Level;
 
 public class RandomFile extends Module {
 
-    private final String keyMessage;
-    private final String replyFormat;
+    static {
+        defaultConfig.put("key-message", ".*show me a file");
+        defaultConfig.put("reply-format", "http://example.com/files/%s");
+        defaultConfig.put("path", null);
+    }
+
     private File dir;
 
-    public RandomFile(Bot bot) {
-        super(bot);
+    public RandomFile(Bot bot, Map<String, String> cfg) {
+        super(bot, cfg);
 
-        // Get properties
-        keyMessage = bot.getProperty("modules.RandomFile.key-message", ".*show me a file");
-        replyFormat = bot.getProperty("modules.RandomFile.reply-format", "http://example.com/files/%s");
-        String path = bot.getProperty("modules.RandomFile.path");
-        if (path != null) {
-            dir = new File(path);
+        // Get directory
+        if (config.get("path") != null) {
+            dir = new File(config.get("path"));
             if (!dir.isDirectory()) {
-                logger.log(Level.WARNING, "{0} isn''t a directory.", path);
+                logger.log(Level.WARNING, "{0} isn''t a directory.", config.get("path"));
                 dir = null;
             }
         } else {
@@ -63,10 +65,10 @@ public class RandomFile extends Module {
     public boolean processMessage(Message msg) {
         if (dir != null) {
             if (msg.isForMe) {
-                if (msg.body.matches(keyMessage)) {
+                if (msg.body.matches(config.get("key-message"))) {
                     String[] files = dir.list();
                     String file = files[new Long(Math.round(Math.random() * (files.length-1))).intValue()];
-                    bot.sendReply(msg, String.format(replyFormat, file));
+                    bot.sendReply(msg, String.format(config.get("reply-format"), file));
                     return true;
                 }
             }

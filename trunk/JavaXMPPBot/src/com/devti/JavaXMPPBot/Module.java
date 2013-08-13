@@ -23,6 +23,9 @@
 
 package com.devti.JavaXMPPBot;
 
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.logging.Logger;
 
 public class Module {
@@ -30,9 +33,20 @@ public class Module {
     protected static final Logger logger = Logger.getLogger("JavaXMPPBot");
     protected Bot bot;
     protected Command[] commands;
+    public static final Map<String, String> defaultConfig = new HashMap<String, String>();
+    public Map<String, String> config = new HashMap<String, String>();
 
-    public Module(Bot bot) {
+    public Module(Bot bot, Map<String, String> cfg) {
         this.bot = bot;
+        Iterator it = defaultConfig.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, String> entry = (Map.Entry<String, String>)it.next();
+            if (cfg.containsKey(entry.getKey())) {
+                config.put(entry.getKey(), cfg.get(entry.getKey()));
+            } else {
+                config.put(entry.getKey(), entry.getValue());
+            }
+        }
         commands = new Command[0];
     }
 

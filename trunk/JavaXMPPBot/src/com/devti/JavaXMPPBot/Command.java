@@ -23,13 +23,37 @@
 
 package com.devti.JavaXMPPBot;
 
+/**
+ * Parent class to implement bot commands.
+ * 
+ * @author Mikhail Telnov <michael.telnov@gmail.com>
+ */
 public class Command {
 
+    /**
+     * Command name (this command executes if bot receives message starting with {@link Bot#getCommandPrefix commandPrefix} + {@link Command#command command}).
+     */
     public final String command;
+    /**
+     * Command description used for help.
+     */
     public final String description;
+    /**
+     * If true, this command available for bot owners.
+     */
     public final boolean ownerOnly;
+    /**
+     * Module implements this command.
+     */
     public final Module module;
 
+    /**
+     *
+     * @param command Command name (command executes if bot receives message starting with {@link Bot#getCommandPrefix commandPrefix} + {@link Command#command command}).
+     * @param description Command description used for help.
+     * @param ownerOnly If true, this command available for bot owners.
+     * @param module Module implements this command.
+     */
     public Command(String command, String description, boolean ownerOnly, Module module) {
         this.command = command;
         this.description = description;

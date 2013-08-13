@@ -57,6 +57,13 @@ public interface Bot {
      * @return path to the configuration file
      */
     public String getConfigPath();
+    
+    /**
+     * Returns command prefix (this substring indicates beginning of a command).
+     * 
+     * @return command prefix
+     */
+    public String getCommandPrefix();
 
     /**
      * Initiates connection to the XMPP server.
@@ -172,24 +179,6 @@ public interface Bot {
      * @return true of the specified JID is in the ignore list
      */
     public boolean isIgnored(String jid);
-
-    /**
-     * Returns value of the specified bot property.
-     * 
-     * @param key the name of the bot property
-     * @return value of the bot property
-     */
-    public String getProperty(String key);
-    
-    /**
-     * Returns value of the specified bot property.
-     * If the bot property isn't defined then returns specified default value.
-     * 
-     * @param key the name of the bot property
-     * @param defaultValue default value for the bot property
-     * @return value of the bot property
-     */
-    public String getProperty(String key, String defaultValue);
 
     /**
      * Sends the message.

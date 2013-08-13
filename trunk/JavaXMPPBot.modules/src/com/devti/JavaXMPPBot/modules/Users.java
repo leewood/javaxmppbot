@@ -23,19 +23,36 @@
 
 package com.devti.JavaXMPPBot.modules;
 
-import com.devti.JavaXMPPBot.Message;
-import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Command;
+import com.devti.JavaXMPPBot.Message;
+import com.devti.JavaXMPPBot.Module;
+import java.io.File;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.Map;
 import java.util.logging.Level;
-import java.io.File;
-import java.security.MessageDigest;
 
 public class Users extends Module {
+    
+    static {
+        defaultConfig.put("db-driver", "org.sqlite.JDBC");
+        defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "users.db");
+        defaultConfig.put("db-username", null);
+        defaultConfig.put("db-password", null);
+        defaultConfig.put("create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_users` (`jid` TEXT, `nickname` TEXT, `password` TEXT, `approved` TINYINT DEFAULT '0')");
+        defaultConfig.put("insert", "INSERT INTO `javaxmppbot_users` (`jid`, `nickname`, `password`) VALUES (?, ?, ?)");
+        defaultConfig.put("select", "SELECT `password` FROM `javaxmppbot_users` WHERE `jid`=? LIMIT 1");
+        defaultConfig.put("select-by-nick", "SELECT `jid` FROM `javaxmppbot_users` WHERE `nickname`=? LIMIT 1");
+        defaultConfig.put("update", "UPDATE `javaxmppbot_users` SET `password`=? WHERE `jid`=?");
+        defaultConfig.put("update-nick", "UPDATE `javaxmppbot_users` SET `nickname`=? WHERE `jid`=?");
+        defaultConfig.put("select-unapproved", "SELECT `jid`, `nickname` FROM `javaxmppbot_users` WHERE `approved`=0");
+        defaultConfig.put("update-approve", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `jid`=? AND `approved`=0");
+        defaultConfig.put("update-approve-all", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `approved`=0");
+    }
     
     private Connection connection;
     private PreparedStatement psCreate;
@@ -53,14 +70,14 @@ public class Users extends Module {
     private final String dbUsername;
     private final String dbPassword;
 
-    public Users(Bot bot) {
-        super(bot);
+    public Users(Bot bot, Map<String, String> cfg) {
+        super(bot, cfg);
         
         // Get properties
-        dbDriver = bot.getProperty("modules.Users.db-driver", "org.sqlite.JDBC");
-        dbUrl = bot.getProperty("modules.Users.db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "users.db");
-        dbUsername = bot.getProperty("modules.Users.db-username");
-        dbPassword = bot.getProperty("modules.Users.db-password");
+        dbDriver = config.get("db-driver");
+        dbUrl = config.get("db-url");
+        dbUsername = config.get("db-username");
+        dbPassword = config.get("db-password");
 
         // Initialize JDBC driver
         try {
@@ -103,16 +120,16 @@ public class Users extends Module {
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        psCreate = connection.prepareStatement(bot.getProperty("modules.Users.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_users` (`jid` TEXT, `nickname` TEXT, `password` TEXT, `approved` TINYINT DEFAULT '0')"));
+        psCreate = connection.prepareStatement(config.get("create"));
         psCreate.execute();
-        psInsert = connection.prepareStatement(bot.getProperty("modules.Users.insert", "INSERT INTO `javaxmppbot_users` (`jid`, `nickname`, `password`) VALUES (?, ?, ?)"));
-        psSelect = connection.prepareStatement(bot.getProperty("modules.Users.select", "SELECT `password` FROM `javaxmppbot_users` WHERE `jid`=? LIMIT 1"));
-        psSelectByNick = connection.prepareStatement(bot.getProperty("modules.Users.select-by-nick", "SELECT `jid` FROM `javaxmppbot_users` WHERE `nickname`=? LIMIT 1"));
-        psUpdate = connection.prepareStatement(bot.getProperty("modules.Users.update", "UPDATE `javaxmppbot_users` SET `password`=? WHERE `jid`=?"));
-        psUpdateNick = connection.prepareStatement(bot.getProperty("modules.Users.update-nick", "UPDATE `javaxmppbot_users` SET `nickname`=? WHERE `jid`=?"));
-        psSelectUnapproved = connection.prepareStatement(bot.getProperty("modules.Users.select-unapproved", "SELECT `jid`, `nickname` FROM `javaxmppbot_users` WHERE `approved`=0"));
-        psApprove = connection.prepareStatement(bot.getProperty("modules.Users.update-approve", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `jid`=? AND `approved`=0"));
-        psApproveAll = connection.prepareStatement(bot.getProperty("modules.Users.update-approve-all", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `approved`=0"));
+        psInsert = connection.prepareStatement(config.get("insert"));
+        psSelect = connection.prepareStatement(config.get("select"));
+        psSelectByNick = connection.prepareStatement(config.get("select-by-nick"));
+        psUpdate = connection.prepareStatement(config.get("update"));
+        psUpdateNick = connection.prepareStatement(config.get("update-nick"));
+        psSelectUnapproved = connection.prepareStatement(config.get("select-unapproved"));
+        psApprove = connection.prepareStatement(config.get("update-approve"));
+        psApproveAll = connection.prepareStatement(config.get("update-approve-all"));
     }
     
     @Override

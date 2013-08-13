@@ -23,16 +23,17 @@
 
 package com.devti.JavaXMPPBot.modules;
 
+import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
-import com.devti.JavaXMPPBot.Bot;
+import java.util.Map;
 import java.util.logging.Level;
 
 
 public class Sample extends Module {
 
-    public Sample(Bot bot) {
-        super(bot);
+    public Sample(Bot bot, Map<String, String> cfg) {
+        super(bot, cfg);
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);

@@ -23,18 +23,19 @@
 
 package com.devti.JavaXMPPBot.modules;
 
-import com.devti.JavaXMPPBot.Message;
-import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Command;
+import com.devti.JavaXMPPBot.Message;
+import com.devti.JavaXMPPBot.Module;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
 
 public class Debug extends Module {
 
-    public Debug(Bot bot) {
-        super(bot);
+    public Debug(Bot bot, Map<String, String> cfg) {
+        super(bot, cfg);
         try {
             bot.registerCommand(new Command("threads", "list threads of this bot", true, this));
             bot.registerCommand(new Command("runtime", "show runtime information", true, this));

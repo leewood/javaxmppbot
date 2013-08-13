@@ -23,36 +23,37 @@
 
 package com.devti.JavaXMPPBot.modules;
 
-import com.devti.JavaXMPPBot.Message;
-import com.devti.JavaXMPPBot.Module;
 import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Command;
+import com.devti.JavaXMPPBot.Message;
+import com.devti.JavaXMPPBot.Module;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
-import java.util.logging.Logger;
-import java.util.logging.Level;
-import java.net.URL;
-import java.net.Proxy;
-import java.net.InetSocketAddress;
-import java.net.HttpURLConnection;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedInputStream;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.URL;
 import java.net.URLConnection;
-import java.security.MessageDigest;
 import java.security.DigestInputStream;
+import java.security.MessageDigest;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
@@ -60,6 +61,43 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 public class Downloader extends Module {
+    
+    static {
+        defaultConfig.put("db-driver", "org.sqlite.JDBC");
+        defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "downloader.db");
+        defaultConfig.put("db-username", null);
+        defaultConfig.put("db-password", null);
+        defaultConfig.put("url-pattern", "http://[:a-z0-9%$&_./~()?=+-]+");
+        defaultConfig.put("tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]");
+        defaultConfig.put("store-to",  System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
+        defaultConfig.put("filename-format",  "%ts_%s%s");
+        defaultConfig.put("dup-reply", "%s is a duplicate of %s (%s) posted at %s by %s");
+        defaultConfig.put("save-real-jid", "no");
+        defaultConfig.put("accept", "image/jpeg;image/gif;image/png;image/pjpeg");
+        defaultConfig.put("extensions-map", "image/jpeg=.jpg;image/gif=.gif;image/png=.png;image/pjpeg=.jpg");
+        defaultConfig.put("tags", null);
+        defaultConfig.put("exclude-specified-tags", "no");
+        defaultConfig.put("signature-base-size", "10");
+        defaultConfig.put("signature-min-match-percent", "99");
+        defaultConfig.put("disable-ssl-cert-validation", "yes");
+        defaultConfig.put("select-signature", "SELECT `md5`, `signature` FROM `javaxmppbot_downloader_signatures`");
+        defaultConfig.put("create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255), `file` TEXT(255))");
+        defaultConfig.put("create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_tags` (`md5` TEXT(32), `tag` TEXT(20))");
+        defaultConfig.put("create-signatures", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_signatures` (`md5` TEXT(32), `signature` BLOB)");
+        defaultConfig.put("insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)");
+        defaultConfig.put("insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)");
+        defaultConfig.put("select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url`, `file` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1");
+        defaultConfig.put("insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)");
+        defaultConfig.put("delete", "DELETE FROM `javaxmppbot_downloader` WHERE `md5`=?");
+        defaultConfig.put("delete-tag", "DELETE FROM `javaxmppbot_downloader_tags` WHERE `md5`=?");
+        defaultConfig.put("delete-signature", "DELETE FROM `javaxmppbot_downloader_signatures` WHERE `md5`=?");
+        defaultConfig.put("select-by-file", "SELECT `md5` FROM `javaxmppbot_downloader` WHERE `file` = ? LIMIT 1");
+        defaultConfig.put("compare-as-images", "yes");
+        defaultConfig.put("proxy.type", "NONE");
+        defaultConfig.put("size-limit", "0");
+        defaultConfig.put("proxy.host", null);
+        defaultConfig.put("proxy.port", null);
+    }
 
     private final Pattern urlPattern;
     private final Pattern tagPattern;
@@ -93,23 +131,23 @@ public class Downloader extends Module {
     private final boolean includeTags;
     private final boolean excludeTags;
 
-    public Downloader(Bot bot) {
-        super(bot);
+    public Downloader(Bot bot, Map<String, String> cfg) {
+        super(bot, cfg);
 
         // Get properties
-        dbDriver = bot.getProperty("modules.Downloader.db-driver", "org.sqlite.JDBC");
-        dbUrl = bot.getProperty("modules.Downloader.db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "downloader.db");
-        dbUsername = bot.getProperty("modules.Downloader.db-username");
-        dbPassword = bot.getProperty("modules.Downloader.db-password");
-        urlPattern = Pattern.compile(bot.getProperty("modules.Downloader.url-pattern", "http://[:a-z0-9%$&_./~()?=+-]+"), Pattern.CASE_INSENSITIVE);
-        tagPattern = Pattern.compile(bot.getProperty("modules.Downloader.tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]"), Pattern.CASE_INSENSITIVE);
-        storeTo = bot.getProperty("modules.Downloader.store-to",  System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
-        filenameFormat = bot.getProperty("modules.Downloader.filename-format",  "%ts_%s%s");
-        dupReplyFormat = bot.getProperty("modules.Downloader.dup-reply", "%s is a duplicate of %s (%s) posted at %s by %s");
-        saveRealJID = bot.getProperty("modules.Downloader.save-real-jid", "no").equalsIgnoreCase("yes");
+        dbDriver = config.get("db-driver");
+        dbUrl = config.get("db-url");
+        dbUsername = config.get("db-username");
+        dbPassword = config.get("db-password");
+        urlPattern = Pattern.compile(config.get("url-pattern"), Pattern.CASE_INSENSITIVE);
+        tagPattern = Pattern.compile(config.get("tag-pattern"), Pattern.CASE_INSENSITIVE);
+        storeTo = config.get("store-to");
+        filenameFormat = config.get("filename-format");
+        dupReplyFormat = config.get("dup-reply");
+        saveRealJID = config.get("save-real-jid").equalsIgnoreCase("yes");
         extensionsMap =  new HashMap<String, String>();
-        if (bot.getProperty("modules.Downloader.extensions-map") != null) {
-            String[] a = bot.getProperty("modules.Downloader.extensions-map").split(";");
+        if (config.get("extensions-map") != null) {
+            String[] a = config.get("extensions-map").split(";");
             for (int i = 0; i < a.length; i++) {
                 String[] element = a[i].split("=");
                 if (element.length == 2) {
@@ -117,21 +155,21 @@ public class Downloader extends Module {
                 }
             }
         }
-        if (bot.getProperty("modules.Downloader.tags") != null) {
-            tags = bot.getProperty("modules.Downloader.tags").split(";");
+        if (config.get("tags") != null) {
+            tags = config.get("tags").split(";");
         } else {
             tags = new String[0];
         }
-        excludeTags = bot.getProperty("modules.Downloader.exclude-specified-tags", "no").equalsIgnoreCase("yes");
+        excludeTags = config.get("exclude-specified-tags").equalsIgnoreCase("yes");
         includeTags = (!excludeTags && (tags.length > 0));
-        signatureBaseSize = new Byte(bot.getProperty("modules.Downloader.signature-base-size", "10"));
-        byte minMatchPercent = new Byte(bot.getProperty("modules.Downloader.signature-min-match-percent", "99"));
+        signatureBaseSize = new Byte(config.get("signature-base-size"));
+        byte minMatchPercent = new Byte(config.get("signature-min-match-percent"));
         int maxImageDistance = (int)Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
         signatureMaxDistance = (int)Math.round(maxImageDistance - maxImageDistance * minMatchPercent / 100);
         imageSignatures = new HashMap<String, byte[]>();
         
         // Disable SSL certificate validation
-        if (bot.getProperty("modules.Downloader.disable-ssl-cert-validation", "yes").equalsIgnoreCase("yes")) {
+        if (config.get("disable-ssl-cert-validation").equalsIgnoreCase("yes")) {
             TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
                     @Override
@@ -175,7 +213,7 @@ public class Downloader extends Module {
         // Load signatures
         try {
             connectToDB();
-            PreparedStatement getSignatures = connection.prepareStatement(bot.getProperty("modules.Downloader.select-signature", "SELECT `md5`, `signature` FROM `javaxmppbot_downloader_signatures`"));
+            PreparedStatement getSignatures = connection.prepareStatement(config.get("select-signature"));
             ResultSet rs = getSignatures.executeQuery();
             while (rs.next()) {
                 imageSignatures.put(rs.getString(1), rs.getBytes(2));
@@ -327,20 +365,20 @@ public class Downloader extends Module {
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        PreparedStatement createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader` (`md5` TEXT(32), `time` INT(10), `from` TEXT(255), `url` TEXT(255), `file` TEXT(255))"));
+        PreparedStatement createTable = connection.prepareStatement(config.get("create"));
         createTable.execute();
-        createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_tags` (`md5` TEXT(32), `tag` TEXT(20))"));
+        createTable = connection.prepareStatement(config.get("create-tags"));
         createTable.execute();
-        createTable = connection.prepareStatement(bot.getProperty("modules.Downloader.create-signatures", "CREATE TABLE IF NOT EXISTS `javaxmppbot_downloader_signatures` (`md5` TEXT(32), `signature` BLOB)"));
+        createTable = connection.prepareStatement(config.get("create-signatures"));
         createTable.execute();
-        psAddRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.insert", "INSERT INTO `javaxmppbot_downloader` (`md5`, `time`, `from`, `url`, `file`) VALUES (?, strftime('%s','now'), ?, ?, ?)"));
-        psAddTag = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-tag", "INSERT INTO `javaxmppbot_downloader_tags` (`md5`, `tag`) VALUES (?, ?)"));
-        psSearchRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from`, `url`, `file` FROM `javaxmppbot_downloader` WHERE `md5` = ? LIMIT 1"));
-        psAddSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.insert-signature", "INSERT INTO `javaxmppbot_downloader_signatures` (`md5`, `signature`) VALUES (?, ?)"));
-        psDeleteRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.delete", "DELETE FROM `javaxmppbot_downloader` WHERE `md5`=?"));
-        psDeleteTag = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-tag", "DELETE FROM `javaxmppbot_downloader_tags` WHERE `md5`=?"));
-        psDeleteSignature = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-signature", "DELETE FROM `javaxmppbot_downloader_signatures` WHERE `md5`=?"));
-        psGetMd5ByFilename = connection.prepareStatement(bot.getProperty("modules.Downloader.select-by-file", "SELECT `md5` FROM `javaxmppbot_downloader` WHERE `file` = ? LIMIT 1"));
+        psAddRecord = connection.prepareStatement(config.get("insert"));
+        psAddTag = connection.prepareStatement(config.get("insert-tag"));
+        psSearchRecord = connection.prepareStatement(config.get("select"));
+        psAddSignature = connection.prepareStatement(config.get("insert-signature"));
+        psDeleteRecord = connection.prepareStatement(config.get("delete"));
+        psDeleteTag = connection.prepareStatement(config.get("delete-tag"));
+        psDeleteSignature = connection.prepareStatement(config.get("delete-signature"));
+        psGetMd5ByFilename = connection.prepareStatement(config.get("select-by-file"));
     }
 
     @Override
@@ -465,13 +503,13 @@ class DownloaderThread extends Thread {
         this.tags = tags;
         this.setName(this.getClass().getName() + "(" + bot.getConfigPath() + ")(" + url + ")");
 
-        if (bot.getProperty("modules.Downloader.accept") == null) {
+        if (downloader.config.get("accept") == null) {
             acceptableTypes = new ArrayList<String>();
         } else {
-            acceptableTypes = new ArrayList<String>(Arrays.asList(bot.getProperty("modules.Downloader.accept").split(";")));
+            acceptableTypes = new ArrayList<String>(Arrays.asList(downloader.config.get("accept").split(";")));
         }
 
-        compareAsImages = bot.getProperty("modules.Downloader.compare-as-images", "yes").equalsIgnoreCase("yes");
+        compareAsImages = downloader.config.get("compare-as-images").equalsIgnoreCase("yes");
     }
 
     public static int bytesToInt(byte[] b) {
@@ -490,16 +528,16 @@ class DownloaderThread extends Thread {
         }
         try {
             InetSocketAddress proxySocketAddress;
-            if (bot.getProperty("modules.Downloader.proxy.host") != null) {
-                proxySocketAddress = new InetSocketAddress(bot.getProperty("modules.Downloader.proxy.host"),
-                                                           new Integer(bot.getProperty("modules.Downloader.proxy.port", "3128"))
+            if (downloader.config.get("proxy.host") != null) {
+                proxySocketAddress = new InetSocketAddress(downloader.config.get("proxy.host"),
+                                                           new Integer(downloader.config.get("proxy.port"))
                                                           );
 
             } else {
                 proxySocketAddress = new InetSocketAddress(0);
             }
             Proxy proxy;
-            String proxyType = bot.getProperty("modules.Downloader.proxy.type", "NONE");
+            String proxyType = downloader.config.get("proxy.type");
             if (proxyType.equalsIgnoreCase("NONE") || proxyType.equalsIgnoreCase("DIRECT")) {
                 proxy = Proxy.NO_PROXY;
             } else {
@@ -520,7 +558,7 @@ class DownloaderThread extends Thread {
             for (int j = 0; j < types.length; j++) {
                 if (acceptableTypes.contains(types[j])) {
                     logger.log(Level.INFO, "OK! Type of {0} is {1}.", new Object[]{url, types[j]});
-                    Integer sizeLimit = new Integer(bot.getProperty("modules.Downloader.size-limit", "0"));
+                    Integer sizeLimit = new Integer(downloader.config.get("size-limit"));
                     if ((sizeLimit == 0) || connection.getContentLength() < sizeLimit) {
                         BufferedInputStream in = null;
                         BufferedOutputStream out = null;
@@ -642,7 +680,7 @@ class DownloaderThread extends Thread {
                             }
                         }
                     } else {
-                        logger.log(Level.INFO, "Size of {0} ({1}) is bigger than allowed limit {2}.", new Object[]{url, connection.getContentLength(), bot.getProperty("modules.Downloader.size-limit")});
+                        logger.log(Level.INFO, "Size of {0} ({1}) is bigger than allowed limit {2}.", new Object[]{url, connection.getContentLength(), downloader.config.get("size-limit")});
                     }
                     acceptable = true;
                     break;

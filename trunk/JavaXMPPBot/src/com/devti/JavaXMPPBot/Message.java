@@ -23,24 +23,90 @@
 
 package com.devti.JavaXMPPBot;
 
+/**
+ * Represents an incoming message
+ * 
+ * @author Mikhail Telnov <michael.telnov@gmail.com>
+ */
 public class Message {
 
+    /**
+     * Represents the type of a message.
+     */
     public enum Type {
-        chat, error, groupchat, headline, normal;
+        /**
+         * Typically short text message used in line-by-line chat interfaces.
+         */
+        chat,
+        /**
+         * indicates a messaging error.
+         */
+        error,
+        /**
+         * Chat message sent to a groupchat server for group chats.
+         */
+        groupchat,
+        /**
+         * Text message to be displayed in scrolling marquee displays.
+         */
+        headline,
+        /**
+         * (Default) a normal text message used in email like interface.
+         */
+        normal;
     }
 
+    /**
+     * full sender identifier
+     */
     public String from;
+    /**
+     * JID part from the sender identifier
+     */
     public String fromJID;
+    /**
+     * XMPP Resource part from the sender identifier
+     */
     public String fromResource;
+    /**
+     * 
+     */
     public String to;
+    /**
+     *
+     */
     public String body;
+    /**
+     *
+     */
     public String command;
+    /**
+     *
+     */
     public String commandArgs;
+    /**
+     *
+     */
     public Type type;
+    /**
+     *
+     */
     public String room;
+    /**
+     *
+     */
     public String nick;
+    /**
+     *
+     */
     public boolean isForMe;
 
+    /**
+     *
+     * @param from
+     * @param to
+     * @param body
+     */
     public Message(String from, String to, String body) {
         this.from = from;
         this.to = to;

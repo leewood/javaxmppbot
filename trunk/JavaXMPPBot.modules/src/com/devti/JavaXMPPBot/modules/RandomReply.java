@@ -33,8 +33,20 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.logging.Level;
 import java.io.File;
+import java.util.Map;
 
 public class RandomReply extends Module {
+    
+    static {
+        defaultConfig.put("db-driver", "org.sqlite.JDBC");
+        defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "random_reply.db");
+        defaultConfig.put("db-username", null);
+        defaultConfig.put("db-password", null);
+        defaultConfig.put("create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_random_reply` (`message` TEXT)");
+        defaultConfig.put("insert", "INSERT INTO `javaxmppbot_random_reply` (`message`) VALUES (?)");
+        defaultConfig.put("delete", "DELETE FROM `javaxmppbot_random_reply` WHERE `message` = ?");
+        defaultConfig.put("select", "SELECT `message` FROM `javaxmppbot_random_reply` ORDER BY random() LIMIT 1");
+    }
 
     private Connection connection;
     private PreparedStatement create;
@@ -47,14 +59,14 @@ public class RandomReply extends Module {
     private final String dbUsername;
     private final String dbPassword;
 
-    public RandomReply(Bot bot) {
-        super(bot);
+    public RandomReply(Bot bot, Map<String, String> cfg) {
+        super(bot, cfg);
 
         // Get properties
-        dbDriver = bot.getProperty("modules.RandomReply.db-driver", "org.sqlite.JDBC");
-        dbUrl = bot.getProperty("modules.RandomReply.db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "random_reply.db");
-        dbUsername = bot.getProperty("modules.RandomReply.db-username");
-        dbPassword = bot.getProperty("modules.RandomReply.db-password");
+        dbDriver = config.get("db-driver");
+        dbUrl = config.get("db-url");
+        dbUsername = config.get("db-username");
+        dbPassword = config.get("db-password");
 
         // Initialize JDBC driver
         try {
@@ -101,11 +113,11 @@ public class RandomReply extends Module {
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        create = connection.prepareStatement(bot.getProperty("modules.RandomReply.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_random_reply` (`message` TEXT)"));
+        create = connection.prepareStatement(config.get("create"));
         create.execute();
-        insert = connection.prepareStatement(bot.getProperty("modules.RandomReply.insert", "INSERT INTO `javaxmppbot_random_reply` (`message`) VALUES (?)"));
-        delete = connection.prepareStatement(bot.getProperty("modules.RandomReply.delete", "DELETE FROM `javaxmppbot_random_reply` WHERE `message` = ?"));
-        select = connection.prepareStatement(bot.getProperty("modules.RandomReply.select", "SELECT `message` FROM `javaxmppbot_random_reply` ORDER BY random() LIMIT 1"));
+        insert = connection.prepareStatement(config.get("insert"));
+        delete = connection.prepareStatement(config.get("delete"));
+        select = connection.prepareStatement(config.get("select"));
     }
 
     @Override
