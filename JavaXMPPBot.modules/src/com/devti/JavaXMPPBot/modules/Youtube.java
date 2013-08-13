@@ -34,12 +34,33 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 
 public class Youtube extends Module {
+    
+    static {
+        defaultConfig.put("db-driver", "org.sqlite.JDBC");
+        defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "youtube.db");
+        defaultConfig.put("db-username", null);
+        defaultConfig.put("db-password", null);
+        defaultConfig.put("url-pattern", "https?://w*\\.youtube.com/[:a-z0-9%$&_./~()?=+-]*");
+        defaultConfig.put("tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]");
+        defaultConfig.put("dup-reply", "%s is a duplicate posted at %s by %s");
+        defaultConfig.put("save-real-jid", "no");
+        defaultConfig.put("tags", null);
+        defaultConfig.put("exclude-specified-tags", "no");
+        defaultConfig.put("create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_youtube` (`id` TEXT(11), `time` INT(10), `from` TEXT(255))");
+        defaultConfig.put("create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_youtube_tags` (`id` TEXT(11), `tag` TEXT(20))");
+        defaultConfig.put("insert", "INSERT INTO `javaxmppbot_youtube` (`id`, `time`, `from`) VALUES (?, strftime('%s','now'), ?)");
+        defaultConfig.put("insert-tag", "INSERT INTO `javaxmppbot_youtube_tags` (`id`, `tag`) VALUES (?, ?)");
+        defaultConfig.put("select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from` FROM `javaxmppbot_youtube` WHERE `id` = ? LIMIT 1");
+        defaultConfig.put("delete", "DELETE FROM `javaxmppbot_youtube` WHERE `id`=?");
+        defaultConfig.put("delete-tag", "DELETE FROM `javaxmppbot_youtube_tags` WHERE `id`=?");
+    }
 
     private final Pattern urlPattern;
     private final Pattern tagPattern;
@@ -63,24 +84,24 @@ public class Youtube extends Module {
     private final boolean includeTags;
     private final boolean excludeTags;
 
-    public Youtube(Bot bot) {
-        super(bot);
+    public Youtube(Bot bot, Map<String, String> cfg) {
+        super(bot, cfg);
 
         // Get properties
-        dbDriver = bot.getProperty("modules.Youtube.db-driver", "org.sqlite.JDBC");
-        dbUrl = bot.getProperty("modules.Youtube.db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "youtube.db");
-        dbUsername = bot.getProperty("modules.Youtube.db-username");
-        dbPassword = bot.getProperty("modules.Youtube.db-password");
-        urlPattern = Pattern.compile(bot.getProperty("modules.Youtube.url-pattern", "https?://w*\\.youtube.com/[:a-z0-9%$&_./~()?=+-]*"), Pattern.CASE_INSENSITIVE);
-        tagPattern = Pattern.compile(bot.getProperty("modules.Youtube.tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]"), Pattern.CASE_INSENSITIVE);
-        dupReplyFormat = bot.getProperty("modules.Youtube.dup-reply", "%s is a duplicate posted at %s by %s");
-        saveRealJID = bot.getProperty("modules.Youtube.save-real-jid", "no").equalsIgnoreCase("yes");
-        if (bot.getProperty("modules.Youtube.tags") != null) {
-            tags = bot.getProperty("modules.Youtube.tags").split(";");
+        dbDriver = config.get("db-driver");
+        dbUrl = config.get("db-url");
+        dbUsername = config.get("db-username");
+        dbPassword = config.get("db-password");
+        urlPattern = Pattern.compile(config.get("url-pattern"), Pattern.CASE_INSENSITIVE);
+        tagPattern = Pattern.compile(config.get("tag-pattern"), Pattern.CASE_INSENSITIVE);
+        dupReplyFormat = config.get("dup-reply");
+        saveRealJID = config.get("save-real-jid").equalsIgnoreCase("yes");
+        if (config.get("tags") != null) {
+            tags = config.get("tags").split(";");
         } else {
             tags = new String[0];
         }
-        excludeTags = bot.getProperty("modules.Youtube.exclude-specified-tags", "no").equalsIgnoreCase("yes");
+        excludeTags = config.get("exclude-specified-tags").equalsIgnoreCase("yes");
         includeTags = (!excludeTags && (tags.length > 0));
 
         // Initialize JDBC driver
@@ -120,15 +141,15 @@ public class Youtube extends Module {
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
         // Prepare JDBC statements and create table if it doesn't exist
-        PreparedStatement createTable = connection.prepareStatement(bot.getProperty("modules.Youtube.create", "CREATE TABLE IF NOT EXISTS `javaxmppbot_youtube` (`id` TEXT(11), `time` INT(10), `from` TEXT(255))"));
+        PreparedStatement createTable = connection.prepareStatement(config.get("create"));
         createTable.execute();
-        createTable = connection.prepareStatement(bot.getProperty("modules.Youtube.create-tags", "CREATE TABLE IF NOT EXISTS `javaxmppbot_youtube_tags` (`id` TEXT(11), `tag` TEXT(20))"));
+        createTable = connection.prepareStatement(config.get("create-tags"));
         createTable.execute();
-        psAddRecord = connection.prepareStatement(bot.getProperty("modules.Youtube.insert", "INSERT INTO `javaxmppbot_youtube` (`id`, `time`, `from`) VALUES (?, strftime('%s','now'), ?)"));
-        psAddTag = connection.prepareStatement(bot.getProperty("modules.Youtube.insert-tag", "INSERT INTO `javaxmppbot_youtube_tags` (`id`, `tag`) VALUES (?, ?)"));
-        psSearchRecord = connection.prepareStatement(bot.getProperty("modules.Youtube.select", "SELECT datetime(`time`, 'unixepoch', 'localtime'), `from` FROM `javaxmppbot_youtube` WHERE `id` = ? LIMIT 1"));
-        psDeleteRecord = connection.prepareStatement(bot.getProperty("modules.Downloader.delete", "DELETE FROM `javaxmppbot_youtube` WHERE `id`=?"));
-        psDeleteTag = connection.prepareStatement(bot.getProperty("modules.Downloader.delete-tag", "DELETE FROM `javaxmppbot_youtube_tags` WHERE `id`=?"));
+        psAddRecord = connection.prepareStatement(config.get("insert"));
+        psAddTag = connection.prepareStatement(config.get("insert-tag"));
+        psSearchRecord = connection.prepareStatement(config.get("select"));
+        psDeleteRecord = connection.prepareStatement(config.get("delete"));
+        psDeleteTag = connection.prepareStatement(config.get("delete-tag"));
     }
 
     @Override

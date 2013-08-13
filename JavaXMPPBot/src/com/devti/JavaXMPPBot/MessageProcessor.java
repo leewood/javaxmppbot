@@ -23,11 +23,11 @@
 
 package com.devti.JavaXMPPBot;
 
-import org.w3c.dom.Node;
-import java.util.logging.Logger;
 import java.util.logging.Level;
-import org.w3c.dom.NodeList;
+import java.util.logging.Logger;
 import org.jivesoftware.smack.util.StringUtils;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 
 public class MessageProcessor extends Thread {
@@ -68,8 +68,8 @@ public class MessageProcessor extends Thread {
                 Message message = new Message(from, to, body);
                 message.type = Message.Type.valueOf(type);
                 // If message body starts with command prefix process it as a command
-                if (body.startsWith(bot.getProperty("command-prefix"))) {
-                    String command = body.substring(bot.getProperty("command-prefix").length());
+                if (body.startsWith(bot.getCommandPrefix())) {
+                    String command = body.substring(bot.getCommandPrefix().length());
                     if (command.matches("^[A-z_]+ .*") || command.matches("^[A-z_]+$")) {
                         String args = command.replaceFirst("^[A-z_]+ *", "");
                         command = command.substring(0, command.length() - args.length()).trim();

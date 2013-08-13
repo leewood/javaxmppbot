@@ -29,6 +29,7 @@ import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +103,7 @@ public final class XMPPBot extends Thread implements Bot {
     private int sendDelay;
     private boolean enabled;
     private Properties properties;
-    private String config;
+    private String configFile;
     private XMPPConnection connection;
     private ConnectionConfiguration connectionConfiguration;
     private List<Module> modules;
@@ -124,7 +125,7 @@ public final class XMPPBot extends Thread implements Bot {
         this.setName(this.getClass().getName() + "(" + configFile + ")");
         enabled = true;
         roomsShouldBeReconnected = false;
-        config = configFile;
+        this.configFile = configFile;
         modules = new ArrayList<Module>();
         commands = Collections.synchronizedMap(new HashMap<String, Command>());
         messageProcessors = Collections.synchronizedList(new ArrayList<Module>());
@@ -175,13 +176,13 @@ public final class XMPPBot extends Thread implements Bot {
     public void reloadConfig() throws Exception {
 
         Properties newProperties = new Properties();
-        newProperties.load(new FileReader(config));
+        newProperties.load(new FileReader(configFile));
 
         // Check required newProperties
         String[] requiredNewProperties = {"server", "username", "password"};
         for (int i = 0; i < requiredNewProperties.length; i++) {
             if (newProperties.getProperty(requiredNewProperties[i]) == null) {
-                throw new Exception("Required property '" + requiredNewProperties[i] + "' isn't defined in the config '" + config + "'.");
+                throw new Exception("Required property '" + requiredNewProperties[i] + "' isn't defined in the config '" + configFile + "'.");
             }
         }
 
@@ -255,7 +256,7 @@ public final class XMPPBot extends Thread implements Bot {
         }
         modules.clear();
 
-        // New config is OK, load it
+        // New configFile is OK, load it
         properties = newProperties;
 
         // Configure logger
@@ -289,8 +290,17 @@ public final class XMPPBot extends Thread implements Bot {
             String[] ma = properties.getProperty("modules").split(";");
             for (int i = 0; i < ma.length; i++) {
                 logger.log(Level.INFO, "Loading module {0}...", ma[i]);
-                java.lang.reflect.Constructor constructor = classLoader.loadClass("com.devti.JavaXMPPBot.modules." + ma[i].trim()).getConstructor(Bot.class);
-                modules.add((Module) constructor.newInstance(this));
+                java.lang.reflect.Constructor constructor = classLoader.loadClass("com.devti.JavaXMPPBot.modules." + ma[i].trim()).getConstructor(Bot.class, Map.class);
+                // Get configuration properties for this module
+                Map<String, String> cfg = new HashMap<String, String>();
+                Enumeration keys = properties.keys();
+                while (keys.hasMoreElements()) {
+                    String key = (String)keys.nextElement();
+                    if (key.equals("modules." + ma[i].trim() + ".")) {
+                        cfg.put(key, properties.getProperty(key));
+                    }
+                }
+                modules.add((Module) constructor.newInstance(this, cfg));
                 logger.log(Level.INFO, "Module {0} has been loaded.", ma[i]);
             }
         }
@@ -489,7 +499,12 @@ public final class XMPPBot extends Thread implements Bot {
 
     @Override
     public String getConfigPath() {
-        return config;
+        return configFile;
+    }
+    
+    @Override
+    public String getCommandPrefix() {
+        return properties.getProperty("command-prefix");
     }
 
     @Override
@@ -532,16 +547,6 @@ public final class XMPPBot extends Thread implements Bot {
             }
         }
         return false;
-    }
-
-    @Override
-    public String getProperty(String key) {
-        return properties.getProperty(key);
-    }
-
-    @Override
-    public String getProperty(String key, String defaultValue) {
-        return properties.getProperty(key, defaultValue);
     }
 
     @Override
