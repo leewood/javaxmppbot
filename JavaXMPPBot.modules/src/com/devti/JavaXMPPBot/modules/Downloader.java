@@ -74,6 +74,7 @@ public class Downloader extends Module {
         defaultConfig.put("dup-reply", "%s is a duplicate of %s (%s) posted at %s by %s");
         defaultConfig.put("save-real-jid", "no");
         defaultConfig.put("accept", "image/jpeg;image/gif;image/png;image/pjpeg");
+        defaultConfig.put("compare-as-images", "image/jpeg;image/png;image/pjpeg");
         defaultConfig.put("extensions-map", "image/jpeg=.jpg;image/gif=.gif;image/png=.png;image/pjpeg=.jpg");
         defaultConfig.put("tags", null);
         defaultConfig.put("exclude-specified-tags", "no");
@@ -92,7 +93,6 @@ public class Downloader extends Module {
         defaultConfig.put("delete-tag", "DELETE FROM `javaxmppbot_downloader_tags` WHERE `md5`=?");
         defaultConfig.put("delete-signature", "DELETE FROM `javaxmppbot_downloader_signatures` WHERE `md5`=?");
         defaultConfig.put("select-by-file", "SELECT `md5` FROM `javaxmppbot_downloader` WHERE `file` = ? LIMIT 1");
-        defaultConfig.put("compare-as-images", "yes");
         defaultConfig.put("proxy.type", "NONE");
         defaultConfig.put("size-limit", "0");
         defaultConfig.put("proxy.host", null);
@@ -493,7 +493,7 @@ class DownloaderThread extends Thread {
     private ArrayList<String> tags;
     private Message message;
     private ArrayList<String> acceptableTypes;
-    private boolean compareAsImages;
+    private ArrayList<String> compareAsImages;
 
     public DownloaderThread(Bot bot, Downloader downloader, String url, ArrayList<String> tags, Message message) {
         this.bot = bot;
@@ -508,8 +508,12 @@ class DownloaderThread extends Thread {
         } else {
             acceptableTypes = new ArrayList<String>(Arrays.asList(downloader.config.get("accept").split(";")));
         }
-
-        compareAsImages = downloader.config.get("compare-as-images").equalsIgnoreCase("yes");
+        
+        if (downloader.config.get("compare-as-images") == null) {
+            compareAsImages = new ArrayList<String>();
+        } else {
+            compareAsImages = new ArrayList<String>(Arrays.asList(downloader.config.get("compare-as-images").split(";")));
+        }
     }
 
     public static int bytesToInt(byte[] b) {
@@ -613,7 +617,7 @@ class DownloaderThread extends Thread {
                                 // Try to compare with another images
                                 boolean isntDuplicate = true;
                                 byte[] signature;
-                                if (compareAsImages) {
+                                if (compareAsImages.contains(realFileType)) {
                                     signature = downloader.createImageSignature(file);
                                     String sigDup = downloader.searchDupBySignature(signature);
                                     if (sigDup != null) {
