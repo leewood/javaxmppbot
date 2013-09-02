@@ -27,11 +27,13 @@ import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import java.io.File;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 
 public class RandomFile extends Module {
 
+    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
     static {
         defaultConfig.put("key-message", ".*show me a file");
         defaultConfig.put("reply-format", "http://example.com/files/%s");
@@ -41,7 +43,7 @@ public class RandomFile extends Module {
     private File dir;
 
     public RandomFile(Bot bot, Map<String, String> cfg) {
-        super(bot, cfg);
+        super(bot, cfg, defaultConfig);
 
         // Get directory
         if (config.get("path") != null) {

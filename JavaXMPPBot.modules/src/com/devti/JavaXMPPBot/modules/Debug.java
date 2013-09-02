@@ -20,7 +20,6 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot.modules;
 
 import com.devti.JavaXMPPBot.Bot;
@@ -30,6 +29,7 @@ import com.devti.JavaXMPPBot.Module;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.Properties;
+import java.util.TreeMap;
 import java.util.logging.Level;
 
 public class Debug extends Module {
@@ -40,6 +40,8 @@ public class Debug extends Module {
             bot.registerCommand(new Command("threads", "list threads of this bot", true, this));
             bot.registerCommand(new Command("runtime", "show runtime information", true, this));
             bot.registerCommand(new Command("system", "show system properties", true, this));
+            bot.registerCommand(new Command("modules", "list loaded modules", true, this));
+            bot.registerCommand(new Command("config", "get configuration for the specified module", true, this));
         } catch (Exception e) {
             logger.log(Level.WARNING, "Can't register a command.", e);
         }
@@ -71,11 +73,37 @@ public class Debug extends Module {
             Properties properties = System.getProperties();
             Enumeration keys = properties.keys();
             while (keys.hasMoreElements()) {
-                String key = (String)keys.nextElement();
+                String key = (String) keys.nextElement();
                 message += key + "=" + properties.getProperty(key) + "\n";
             }
             bot.sendReply(msg, message);
+        } else if (msg.command.equals("modules")) {
+            String message = "Loaded modules: ";
+            String[] modules = bot.getModules();
+            for (int i = 0; i < modules.length; i++) {
+                message += modules[i];
+                if (i < modules.length - 1) {
+                    message += ", ";
+                }
+            }
+            bot.sendReply(msg, message);
+        } else if (msg.command.equals("config")) {
+            if (msg.commandArgs == null || msg.commandArgs.isEmpty()) {
+                bot.sendReply(msg, "Usage: " + bot.getCommandPrefix() + "config <Module>");
+                return;
+            }
+            String name = msg.commandArgs.trim();
+            Module module = bot.getModule(name);
+            if (module == null) {
+                bot.sendReply(msg, "Error: module '" + name + "' isn't loaded.");
+            } else {
+                String message = "Configuration for module '" + name + "':\n";
+                TreeMap<String, String> cfg = new TreeMap<String, String>(module.getConfig());
+                for (Map.Entry<String, String> property : cfg.entrySet()) {
+                    message += String.format("%s = %s\n", property.getKey(), property.getValue());
+                }
+                bot.sendReply(msg, message);
+            }
         }
     }
-
 }
