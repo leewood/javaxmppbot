@@ -20,11 +20,9 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -33,14 +31,18 @@ public class Module {
     protected static final Logger logger = Logger.getLogger("JavaXMPPBot");
     protected Bot bot;
     protected Command[] commands;
-    public static final Map<String, String> defaultConfig = new HashMap<String, String>();
-    public Map<String, String> config = new HashMap<String, String>();
+    protected Map<String, String> config;
 
     public Module(Bot bot, Map<String, String> cfg) {
         this.bot = bot;
-        Iterator it = defaultConfig.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, String> entry = (Map.Entry<String, String>)it.next();
+        config = new HashMap<String, String>(cfg);
+        commands = new Command[0];
+    }
+
+    public Module(Bot bot, Map<String, String> cfg, Map<String, String> defaultConfig) {
+        this.bot = bot;
+        config = new HashMap<String, String>(cfg);
+        for (Map.Entry<String, String> entry : defaultConfig.entrySet()) {
             if (cfg.containsKey(entry.getKey())) {
                 config.put(entry.getKey(), cfg.get(entry.getKey()));
             } else {
@@ -50,12 +52,16 @@ public class Module {
         commands = new Command[0];
     }
 
-    public Command[] getCommands() {
-        return commands;
+    public Map<String, String> getConfig() {
+        return new HashMap<String, String>(config);
     }
 
-    public String getHelp(String command) {
-        return null;
+    public String getConfigProperty(String property) {
+        return config.get(property);
+    }
+
+    public Command[] getCommands() {
+        return commands;
     }
 
     public void processCommand(Message msg) {
@@ -68,8 +74,7 @@ public class Module {
     public String processOutgoingMessage(String msg) {
         return msg;
     }
-    
+
     public void onUnload() {
     }
-
 }

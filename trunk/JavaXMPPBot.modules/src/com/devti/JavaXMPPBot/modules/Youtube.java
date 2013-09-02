@@ -34,6 +34,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.regex.Matcher;
@@ -42,6 +43,7 @@ import java.util.regex.Pattern;
 
 public class Youtube extends Module {
     
+    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "youtube.db");
@@ -85,7 +87,7 @@ public class Youtube extends Module {
     private final boolean excludeTags;
 
     public Youtube(Bot bot, Map<String, String> cfg) {
-        super(bot, cfg);
+        super(bot, cfg, defaultConfig);
 
         // Get properties
         dbDriver = config.get("db-driver");

@@ -62,6 +62,7 @@ import javax.net.ssl.X509TrustManager;
 
 public class Downloader extends Module {
     
+    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "downloader.db");
@@ -132,7 +133,7 @@ public class Downloader extends Module {
     private final boolean excludeTags;
 
     public Downloader(Bot bot, Map<String, String> cfg) {
-        super(bot, cfg);
+        super(bot, cfg, defaultConfig);
 
         // Get properties
         dbDriver = config.get("db-driver");
@@ -503,16 +504,16 @@ class DownloaderThread extends Thread {
         this.tags = tags;
         this.setName(this.getClass().getName() + "(" + bot.getConfigPath() + ")(" + url + ")");
 
-        if (downloader.config.get("accept") == null) {
+        if (downloader.getConfigProperty("accept") == null) {
             acceptableTypes = new ArrayList<String>();
         } else {
-            acceptableTypes = new ArrayList<String>(Arrays.asList(downloader.config.get("accept").split(";")));
+            acceptableTypes = new ArrayList<String>(Arrays.asList(downloader.getConfigProperty("accept").split(";")));
         }
         
-        if (downloader.config.get("compare-as-images") == null) {
+        if (downloader.getConfigProperty("compare-as-images") == null) {
             compareAsImages = new ArrayList<String>();
         } else {
-            compareAsImages = new ArrayList<String>(Arrays.asList(downloader.config.get("compare-as-images").split(";")));
+            compareAsImages = new ArrayList<String>(Arrays.asList(downloader.getConfigProperty("compare-as-images").split(";")));
         }
     }
 
@@ -532,16 +533,16 @@ class DownloaderThread extends Thread {
         }
         try {
             InetSocketAddress proxySocketAddress;
-            if (downloader.config.get("proxy.host") != null) {
-                proxySocketAddress = new InetSocketAddress(downloader.config.get("proxy.host"),
-                                                           new Integer(downloader.config.get("proxy.port"))
+            if (downloader.getConfigProperty("proxy.host") != null) {
+                proxySocketAddress = new InetSocketAddress(downloader.getConfigProperty("proxy.host"),
+                                                           new Integer(downloader.getConfigProperty("proxy.port"))
                                                           );
 
             } else {
                 proxySocketAddress = new InetSocketAddress(0);
             }
             Proxy proxy;
-            String proxyType = downloader.config.get("proxy.type");
+            String proxyType = downloader.getConfigProperty("proxy.type");
             if (proxyType.equalsIgnoreCase("NONE") || proxyType.equalsIgnoreCase("DIRECT")) {
                 proxy = Proxy.NO_PROXY;
             } else {
@@ -562,7 +563,7 @@ class DownloaderThread extends Thread {
             for (int j = 0; j < types.length; j++) {
                 if (acceptableTypes.contains(types[j])) {
                     logger.log(Level.INFO, "OK! Type of {0} is {1}.", new Object[]{url, types[j]});
-                    Integer sizeLimit = new Integer(downloader.config.get("size-limit"));
+                    Integer sizeLimit = new Integer(downloader.getConfigProperty("size-limit"));
                     if ((sizeLimit == 0) || connection.getContentLength() < sizeLimit) {
                         BufferedInputStream in = null;
                         BufferedOutputStream out = null;
@@ -684,7 +685,7 @@ class DownloaderThread extends Thread {
                             }
                         }
                     } else {
-                        logger.log(Level.INFO, "Size of {0} ({1}) is bigger than allowed limit {2}.", new Object[]{url, connection.getContentLength(), downloader.config.get("size-limit")});
+                        logger.log(Level.INFO, "Size of {0} ({1}) is bigger than allowed limit {2}.", new Object[]{url, connection.getContentLength(), downloader.getConfigProperty("size-limit")});
                     }
                     acceptable = true;
                     break;

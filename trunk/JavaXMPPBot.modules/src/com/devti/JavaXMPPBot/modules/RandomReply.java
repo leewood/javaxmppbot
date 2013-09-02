@@ -33,10 +33,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.logging.Level;
 import java.io.File;
+import java.util.HashMap;
 import java.util.Map;
 
 public class RandomReply extends Module {
     
+    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "random_reply.db");
@@ -60,7 +62,7 @@ public class RandomReply extends Module {
     private final String dbPassword;
 
     public RandomReply(Bot bot, Map<String, String> cfg) {
-        super(bot, cfg);
+        super(bot, cfg, defaultConfig);
 
         // Get properties
         dbDriver = config.get("db-driver");

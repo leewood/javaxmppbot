@@ -33,11 +33,13 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 
 public class Users extends Module {
     
+    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "users.db");
@@ -71,7 +73,7 @@ public class Users extends Module {
     private final String dbPassword;
 
     public Users(Bot bot, Map<String, String> cfg) {
-        super(bot, cfg);
+        super(bot, cfg, defaultConfig);
         
         // Get properties
         dbDriver = config.get("db-driver");
