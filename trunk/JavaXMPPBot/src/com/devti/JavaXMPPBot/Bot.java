@@ -132,6 +132,14 @@ public interface Bot {
      * @return {@link Module Module} object
      */
     public Module getModule(String name);
+    
+     /**
+     * Returns list of registered commands.
+     * 
+     * @param owner if <code>true</code> returns owner's commands also
+     * @return list of registered commands ({@link Command})
+     */
+    public Command[] getCommands(boolean owner);
 
     /**
      * Registers the {@link Command} for this bot.
