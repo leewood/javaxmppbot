@@ -75,23 +75,21 @@ class ConnectionListener implements org.jivesoftware.smack.ConnectionListener {
     }
 }
 
-
 class ShutdownHandler extends Thread {
-    
+
     private final Bot bot;
 
     public ShutdownHandler(Bot bot) {
         this.bot = bot;
     }
-    
+
     @Override
     public void run() {
         bot.disconnect();
     }
-
 }
 
-/** 
+/**
  * @author Mikhail Telnov <michael.telnov@gmail.com>
  */
 public final class XMPPBot extends Thread implements Bot {
@@ -268,7 +266,7 @@ public final class XMPPBot extends Thread implements Bot {
         FileHandler fileHandler = new FileHandler(properties.getProperty("log"));
         fileHandler.setFormatter(new SimpleFormatter());
         logger.addHandler(fileHandler);
-        
+
         // Reload modules
         if (!properties.getProperty("modules", "").equals("")) {
             List<URL> urls = new ArrayList<URL>();
@@ -295,7 +293,7 @@ public final class XMPPBot extends Thread implements Bot {
                 Map<String, String> cfg = new HashMap<String, String>();
                 Enumeration keys = properties.keys();
                 while (keys.hasMoreElements()) {
-                    String key = (String)keys.nextElement();
+                    String key = (String) keys.nextElement();
                     if (key.equals("modules." + ma[i].trim() + ".")) {
                         cfg.put(key, properties.getProperty(key));
                     }
@@ -440,6 +438,20 @@ public final class XMPPBot extends Thread implements Bot {
     }
 
     @Override
+    public Command[] getCommands(boolean owner) {
+        List<Command> cmds = new ArrayList<Command>();
+        List<String> names = new ArrayList<String>(commands.keySet());
+        Collections.sort(names);
+        for (String name : names) {
+            Command command = commands.get(name);
+            if (owner || command.ownerOnly) {
+                cmds.add(command);
+            }
+        }
+        return cmds.toArray(new Command[cmds.size()]);
+    }
+
+    @Override
     public void registerCommand(Command command) throws Exception {
         synchronized (commands) {
             if (commands.containsKey(command.command)) {
@@ -501,7 +513,7 @@ public final class XMPPBot extends Thread implements Bot {
     public String getConfigPath() {
         return configFile;
     }
-    
+
     @Override
     public String getCommandPrefix() {
         return properties.getProperty("command-prefix");
