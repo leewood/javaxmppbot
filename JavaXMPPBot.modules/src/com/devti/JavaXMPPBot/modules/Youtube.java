@@ -20,7 +20,6 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot.modules;
 
 import com.devti.JavaXMPPBot.Bot;
@@ -33,17 +32,17 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 public class Youtube extends Module {
-    
-    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
+
+    static private final Map<String, String> defaultConfig = new HashMap<>();
+
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "youtube.db");
@@ -94,8 +93,10 @@ public class Youtube extends Module {
         dbUrl = config.get("db-url");
         dbUsername = config.get("db-username");
         dbPassword = config.get("db-password");
-        urlPattern = Pattern.compile(config.get("url-pattern"), Pattern.CASE_INSENSITIVE);
-        tagPattern = Pattern.compile(config.get("tag-pattern"), Pattern.CASE_INSENSITIVE);
+        urlPattern = Pattern.compile(config.get("url-pattern"),
+                Pattern.CASE_INSENSITIVE);
+        tagPattern = Pattern.compile(config.get("tag-pattern"),
+                Pattern.CASE_INSENSITIVE);
         dupReplyFormat = config.get("dup-reply");
         saveRealJID = config.get("save-real-jid").equalsIgnoreCase("yes");
         if (config.get("tags") != null) {
@@ -109,36 +110,42 @@ public class Youtube extends Module {
         // Initialize JDBC driver
         try {
             Class.forName(dbDriver).newInstance();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't initialize JDBC driver '" + dbDriver + "'", e);
+        } catch (ClassNotFoundException | IllegalAccessException |
+                InstantiationException e) {
+            log.warn("Can't initialize JDBC driver '%s': %s",
+                    dbDriver, e.getLocalizedMessage());
         }
 
         try {
             // Register commands provided by this module
-            bot.registerCommand(new Command("delete_youtube_link", "remove a stored youtube link specified by Youtube ID", true, this));
+            bot.registerCommand(new Command("delete_youtube_link",
+                    "remove a stored youtube link specified by Youtube ID",
+                    true, this));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register a command.", e);
+            log.warn("Can't register a command: " + e.getLocalizedMessage());
         }
 
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register message processor.", e);
+            log.warn("Can't register message processor: "
+                    + e.getLocalizedMessage());
         }
     }
 
     private void connectToDB() throws Exception {
         // Return if connection is opened already
         try {
-            if (connection != null &&
-                !connection.isClosed() &&
-                (dbDriver.equalsIgnoreCase("org.sqlite.JDBC") || connection.isValid(5))
-               ) {
+            if (connection != null
+                    && !connection.isClosed()
+                    && (dbDriver.equalsIgnoreCase("org.sqlite.JDBC")
+                    || connection.isValid(5))) {
                 return;
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "JDBC connection isn't ready or can't check it.", e);
+        } catch (SQLException e) {
+            log.warn("JDBC connection isn't ready or can't check it: "
+                    + e.getLocalizedMessage());
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -158,7 +165,7 @@ public class Youtube extends Module {
     public boolean processMessage(Message msg) {
         String message = msg.body;
         // Get tags
-        ArrayList<String> messageTags = new ArrayList<String>();
+        ArrayList<String> messageTags = new ArrayList<>();
         Matcher matcher = tagPattern.matcher(message);
         while (matcher.find()) {
             messageTags.add(matcher.group(1));
@@ -166,13 +173,14 @@ public class Youtube extends Module {
 
         // Check tag exclusions
         if (excludeTags) {
-            for (int i = 0; i < tags.length; i++) {
-                if (messageTags.contains(tags[i])) {
-                    logger.log(Level.INFO, "Message contains an excluded tag ({0}), so skip it.", tags[i]);
+            for (String tag : tags) {
+                if (messageTags.contains(tag)) {
+                    log.info("Message contains an excluded tag (%s), so skip it.",
+                            tag);
                     return super.processMessage(msg);
                 }
             }
-        // Check tag inclusions
+            // Check tag inclusions
         } else if (includeTags) {
             boolean skip = true;
             for (int i = 0; i < tags.length; i++) {
@@ -181,11 +189,11 @@ public class Youtube extends Module {
                 }
             }
             if (skip) {
-                logger.info("Message doesn't contain any of specified tags, so skip it.");
+                log.info("Message doesn't contain any of specified tags, so skip it.");
                 return super.processMessage(msg);
             }
         }
-        
+
         String from;
         if (saveRealJID) {
             from = msg.fromJID;
@@ -198,37 +206,41 @@ public class Youtube extends Module {
         while (matcher.find()) {
             try {
                 URL url = new URL(matcher.group());
-                logger.log(Level.INFO, "I have got a new youtube link {0}.", url.toString());
+                log.info("I have got a new youtube link " + url.toString());
                 String[] params = url.getQuery().split("&");
                 for (String param : params) {
                     String[] p = param.split("=");
-                    if (p[0].equalsIgnoreCase("v")) {
-                        ResultSet rs;
-                        synchronized (dbDriver) {
-                            connectToDB();
-                            psSearchRecord.setString(1, p[1]);
-                            rs = psSearchRecord.executeQuery();
-                        }
-                        if (rs.next()) {
-                            bot.sendReply(msg, String.format(dupReplyFormat, url.toString(), rs.getString(1), rs.getString(2)));
-                        } else {
-                            synchronized (dbDriver) {
-                                connectToDB();
-                                psAddRecord.setString(1, p[1]);
-                                psAddRecord.setString(2, from);
-                                psAddRecord.executeUpdate();
-                                for (int i = 0; i < messageTags.size(); i++) {
-                                    psAddTag.setString(1, p[1]);
-                                    psAddTag.setString(2, messageTags.get(i));
-                                    psAddTag.executeUpdate();
-                                }
-                            }
-                        }
+                    if (!p[0].equalsIgnoreCase("v")) {
+                        continue;
+                    }
+                    ResultSet rs;
+                    synchronized (dbDriver) {
+                        connectToDB();
+                        psSearchRecord.setString(1, p[1]);
+                        rs = psSearchRecord.executeQuery();
+                    }
+                    if (rs.next()) {
+                        bot.sendReply(msg, String.format(dupReplyFormat,
+                                url.toString(), rs.getString(1),
+                                rs.getString(2)));
                         break;
                     }
+                    synchronized (dbDriver) {
+                        connectToDB();
+                        psAddRecord.setString(1, p[1]);
+                        psAddRecord.setString(2, from);
+                        psAddRecord.executeUpdate();
+                        for (int i = 0; i < messageTags.size(); i++) {
+                            psAddTag.setString(1, p[1]);
+                            psAddTag.setString(2, messageTags.get(i));
+                            psAddTag.executeUpdate();
+                        }
+                    }
+                    break;
                 }
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't create an URL from string.", e);
+                log.warn("Can't create an URL from string: "
+                        + e.getLocalizedMessage());
             }
         }
         return super.processMessage(msg);
@@ -254,14 +266,19 @@ public class Youtube extends Module {
                         psDeleteTag.setString(1, id);
                         psDeleteTag.executeUpdate();
                     }
-                    bot.sendReply(msg, "Youtube link '" + id + "' has been deleted.");
-                } else {
-                    bot.sendReply(msg, "Error: youtube link '" + id + "' isn't found.");
+                    bot.sendReply(msg, "Youtube link '" + id
+                            + "' has been deleted.");
+                    return;
                 }
+                bot.sendReply(msg, "Error: youtube link '" + id
+                        + "' isn't found.");
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't perfrom delete_youtube_link command.", e);
-                bot.sendReply(msg, "Error: can't perfrom delete_youtube_link command.");
+                log.warn("Can't perfrom delete_youtube_link command: "
+                        + e.getLocalizedMessage());
+                bot.sendReply(msg,
+                        "Error: can't perfrom delete_youtube_link command.");
             }
+            return;
         }
     }
 
@@ -269,9 +286,9 @@ public class Youtube extends Module {
     public void onUnload() {
         try {
             connection.close();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't close JDBC connection", e);
+        } catch (SQLException e) {
+            log.warn("Can't close JDBC connection: " + e.getLocalizedMessage());
         }
     }
-    
+
 }

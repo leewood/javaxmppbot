@@ -20,7 +20,6 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot.modules;
 
 import com.devti.JavaXMPPBot.Message;
@@ -31,14 +30,15 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.logging.Level;
 import java.io.File;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
 public class RandomReply extends Module {
-    
-    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
+
+    static private final Map<String, String> defaultConfig = new HashMap<>();
+
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "random_reply.db");
@@ -73,44 +73,52 @@ public class RandomReply extends Module {
         // Initialize JDBC driver
         try {
             Class.forName(dbDriver).newInstance();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't initialize JDBC driver '" + dbDriver + "'", e);
+        } catch (ClassNotFoundException | InstantiationException |
+                IllegalAccessException e) {
+            log.warn("Can't initialize JDBC driver '%s': %s",
+                    dbDriver, e.getLocalizedMessage());
         }
 
         // Connect to DB
         try {
             connectToDB();
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't prepare DB connection.", e);
+            log.warn("Can't prepare DB connection: " + e.getLocalizedMessage());
         }
 
         // Register commands provided by this module
         try {
-            bot.registerCommand(new Command("reply_add", "add auto reply phrase", true, this));
-            bot.registerCommand(new Command("reply_delete", "delete specified phrase from auto replies", true, this));
+            bot.registerCommand(new Command(
+                    "reply_add", "add auto reply phrase",
+                    true, this));
+            bot.registerCommand(new Command(
+                    "reply_delete", "delete specified phrase from auto replies",
+                    true, this));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register a command.", e);
+            log.warn("Can't register a command: " + e.getLocalizedMessage());
         }
 
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register message processor.", e);
+            log.warn("Can't register message processor: "
+                    + e.getLocalizedMessage());
         }
     }
 
     private void connectToDB() throws Exception {
         // Return if connection is opened already
         try {
-            if (connection != null &&
-                !connection.isClosed() &&
-                (dbDriver.equalsIgnoreCase("org.sqlite.JDBC") || connection.isValid(5))
-               ) {
+            if (connection != null
+                    && !connection.isClosed()
+                    && (dbDriver.equalsIgnoreCase("org.sqlite.JDBC")
+                    || connection.isValid(5))) {
                 return;
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "JDBC connection isn't ready or can't check it.", e);
+        } catch (SQLException e) {
+            log.warn("JDBC connection isn't ready or can't check it: "
+                    + e.getLocalizedMessage());
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -133,7 +141,8 @@ public class RandomReply extends Module {
                 }
                 bot.sendReply(msg, "New random reply has been added.");
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
             }
         } else if (msg.command.equals("reply_delete")) {
             try {
@@ -144,15 +153,19 @@ public class RandomReply extends Module {
                 }
                 bot.sendReply(msg, "Random reply has been deleted.");
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
             }
         }
     }
 
     @Override
     public boolean processMessage(Message msg) {
-        if ((msg.type == Message.Type.normal) || (msg.type == Message.Type.chat) || (msg.type == Message.Type.groupchat)) {
-            if ((msg.type != Message.Type.groupchat) || msg.body.startsWith(bot.getNickname(msg.room))) {
+        if ((msg.type == Message.Type.normal)
+                || (msg.type == Message.Type.chat)
+                || (msg.type == Message.Type.groupchat)) {
+            if ((msg.type != Message.Type.groupchat)
+                    || msg.body.startsWith(bot.getNickname(msg.room))) {
                 String reply = null;
                 try {
                     synchronized (dbDriver) {
@@ -166,7 +179,8 @@ public class RandomReply extends Module {
                         bot.sendReply(msg, reply);
                     }
                 } catch (Exception e) {
-                    logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                    log.warn("Can't execute JDBC statement: "
+                            + e.getLocalizedMessage());
                 }
             }
         }
@@ -177,8 +191,8 @@ public class RandomReply extends Module {
     public void onUnload() {
         try {
             connection.close();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't close JDBC connection", e);
+        } catch (SQLException e) {
+            log.warn("Can't close JDBC connection: " + e.getLocalizedMessage());
         }
     }
 }

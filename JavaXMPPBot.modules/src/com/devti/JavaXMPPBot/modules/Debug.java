@@ -30,7 +30,6 @@ import java.util.Enumeration;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
-import java.util.logging.Level;
 
 public class Debug extends Module {
 
@@ -43,7 +42,7 @@ public class Debug extends Module {
             bot.registerCommand(new Command("modules", "list loaded modules", true, this));
             bot.registerCommand(new Command("config", "get configuration for the specified module", true, this));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register a command.", e);
+            log.warn("Can't register a command: " + e.getLocalizedMessage());
         }
     }
 
@@ -55,7 +54,8 @@ public class Debug extends Module {
             int threadsCount = Thread.enumerate(threads);
             String message = new String();
             for (int i = 0; i < threadsCount; i++) {
-                message += (i + 1) + ") " + threads[i].getName() + " [" + threads[i].getState().toString() + "]\n";
+                message += (i + 1) + ") " + threads[i].getName() + " [" +
+                        threads[i].getState().toString() + "]\n";
             }
             bot.sendReply(msg, message);
             // Show runtime information
@@ -89,7 +89,8 @@ public class Debug extends Module {
             bot.sendReply(msg, message);
         } else if (msg.command.equals("config")) {
             if (msg.commandArgs == null || msg.commandArgs.isEmpty()) {
-                bot.sendReply(msg, "Usage: " + bot.getCommandPrefix() + "config <Module>");
+                bot.sendReply(msg, "Usage: " + bot.getCommandPrefix() +
+                        "config <Module>");
                 return;
             }
             String name = msg.commandArgs.trim();
@@ -98,9 +99,11 @@ public class Debug extends Module {
                 bot.sendReply(msg, "Error: module '" + name + "' isn't loaded.");
             } else {
                 String message = "Configuration for module '" + name + "':\n";
-                TreeMap<String, String> cfg = new TreeMap<String, String>(module.getConfig());
+                TreeMap<String, String> cfg;
+                cfg = new TreeMap<>(module.getConfig());
                 for (Map.Entry<String, String> property : cfg.entrySet()) {
-                    message += String.format("%s = %s\n", property.getKey(), property.getValue());
+                    message += String.format("%s = %s\n", property.getKey(),
+                            property.getValue());
                 }
                 bot.sendReply(msg, message);
             }

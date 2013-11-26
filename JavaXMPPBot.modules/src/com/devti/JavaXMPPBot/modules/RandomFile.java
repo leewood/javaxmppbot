@@ -20,7 +20,6 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot.modules;
 
 import com.devti.JavaXMPPBot.Bot;
@@ -29,11 +28,11 @@ import com.devti.JavaXMPPBot.Module;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
 
 public class RandomFile extends Module {
 
-    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
+    static private final Map<String, String> defaultConfig = new HashMap<>();
+
     static {
         defaultConfig.put("key-message", ".*show me a file");
         defaultConfig.put("reply-format", "http://example.com/files/%s");
@@ -49,7 +48,7 @@ public class RandomFile extends Module {
         if (config.get("path") != null) {
             dir = new File(config.get("path"));
             if (!dir.isDirectory()) {
-                logger.log(Level.WARNING, "{0} isn''t a directory.", config.get("path"));
+                log.warn("%s isn''t a directory.", config.get("path"));
                 dir = null;
             }
         } else {
@@ -59,23 +58,22 @@ public class RandomFile extends Module {
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register message processor.", e);
+            log.warn("Can't register message processor: "
+                    + e.getLocalizedMessage());
         }
     }
 
     @Override
     public boolean processMessage(Message msg) {
-        if (dir != null) {
-            if (msg.isForMe) {
-                if (msg.body.matches(config.get("key-message"))) {
-                    String[] files = dir.list();
-                    String file = files[new Long(Math.round(Math.random() * (files.length-1))).intValue()];
-                    bot.sendReply(msg, String.format(config.get("reply-format"), file));
-                    return true;
-                }
-            }
+        if (dir == null || !msg.isForMe
+                || !msg.body.matches(config.get("key-message"))) {
+            return super.processMessage(msg);
         }
-        return super.processMessage(msg);
+        String[] files = dir.list();
+        String file = files[new Long(Math.round(Math.random()
+                * (files.length - 1))).intValue()];
+        bot.sendReply(msg, String.format(config.get("reply-format"), file));
+        return true;
     }
 
 }

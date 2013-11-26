@@ -24,24 +24,25 @@ package com.devti.JavaXMPPBot;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
 
 public class Module {
 
-    protected static final Logger logger = Logger.getLogger("JavaXMPPBot");
+    protected final Logger log;
     protected Bot bot;
     protected Command[] commands;
     protected Map<String, String> config;
 
     public Module(Bot bot, Map<String, String> cfg) {
         this.bot = bot;
-        config = new HashMap<String, String>(cfg);
+        this.log = bot.getLogger();
+        config = new HashMap<>(cfg);
         commands = new Command[0];
     }
 
     public Module(Bot bot, Map<String, String> cfg, Map<String, String> defaultConfig) {
         this.bot = bot;
-        config = new HashMap<String, String>(cfg);
+        this.log = bot.getLogger();
+        config = new HashMap<>(cfg);
         for (Map.Entry<String, String> entry : defaultConfig.entrySet()) {
             if (cfg.containsKey(entry.getKey())) {
                 config.put(entry.getKey(), cfg.get(entry.getKey()));
@@ -53,7 +54,7 @@ public class Module {
     }
 
     public Map<String, String> getConfig() {
-        return new HashMap<String, String>(config);
+        return new HashMap<>(config);
     }
 
     public String getConfigProperty(String property) {

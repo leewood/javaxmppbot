@@ -20,58 +20,46 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot;
 
-import java.io.File;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.apache.commons.daemon.DaemonContext;
+import org.apache.commons.daemon.DaemonController;
+
+class FakeDaemonContext implements DaemonContext {
+
+    private final String[] args;
+
+    public FakeDaemonContext(String[] args) {
+        this.args = args;
+    }
+
+    @Override
+    public DaemonController getController() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public String[] getArguments() {
+        return args;
+    }
+
+}
 
 public class Main {
 
-    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
-    private static XMPPBot bot;
-    private static final String defaultConfigFile = ".JavaXMPPBot.cfg";
-    private static String configFile;
-
     public static void main(String[] args) {
-
-        if (args.length == 0) {
-            configFile = System.getProperty("user.home") + File.separator + defaultConfigFile;
-        } else if (args.length == 1) {
-            configFile = args[0];
-        } else {
-            System.err.println("Usage: java -jar JavaXMPPBot.jar <CONFIG_FILE>");
-            System.exit(1);
-        }
-        
-        // Load bot
+        JavaXMPPBot daemon = new JavaXMPPBot();
         try {
-            bot = new XMPPBot(configFile);
+            daemon.init(new FakeDaemonContext(args));
+            daemon.start();
+            while (Thread.activeCount() > 1) {
+                Thread.sleep(1000);
+            }
         } catch (Exception e) {
-            System.err.println("Can't load bot with config file '" +
-                               configFile + "': " +
-                               e.getLocalizedMessage());
+            e.printStackTrace();
+            //System.err.println("Can't load a bot: " + e.getLocalizedMessage());
             System.exit(1);
         }
-
-        // Connect bot
-        try {
-            bot.connect();
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Can't perform connection to the XMPP server: {0}", e.getLocalizedMessage());
-            System.exit(1);
-        }
-
-        // Wait for all bots exit
-        try {
-            bot.join();
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error occured during waiting for the bot: {0}", e.getLocalizedMessage());
-            System.exit(1);
-        }
-
-        System.exit(0);
     }
 
 }

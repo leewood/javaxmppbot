@@ -20,7 +20,6 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot.modules;
 
 import com.devti.JavaXMPPBot.Bot;
@@ -28,7 +27,6 @@ import com.devti.JavaXMPPBot.Command;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import java.util.Map;
-import java.util.logging.Level;
 
 public class Control extends Module {
 
@@ -42,7 +40,7 @@ public class Control extends Module {
             bot.registerCommand(new Command("leave", "leave to the room(conference) specified as argument", true, this));
             bot.registerCommand(new Command("rooms", "list active rooms(conferences) specified as argument", true, this));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register a command.", e);
+            log.warn("Can't register a command: " + e.getLocalizedMessage());
         }
     }
 
@@ -50,28 +48,29 @@ public class Control extends Module {
     public void processCommand(Message msg) {
         // Disconnect and close this bot
         if (msg.command.equals("quit")) {
-                bot.disconnect();
-        // Reload bot config
+            bot.disconnect();
+            // Reload bot config
         } else if (msg.command.equals("reload")) {
             try {
                 bot.reloadConfig();
                 bot.sendReply(msg, "Bot config has been reloaded.");
             } catch (Exception e) {
-                logger.log(Level.WARNING, "An error occurred during config reloading", e);
+                log.warn("An error occurred during config reloading: "
+                        + e.getLocalizedMessage());
                 bot.sendReply(msg, "An error has been occurred during config reloading, examine log for more information.");
             }
-        // Join to a chat room
+            // Join to a chat room
         } else if (msg.command.equals("join")) {
             bot.joinRoom(msg.commandArgs.trim());
-        // Leave a chat room
+            // Leave a chat room
         } else if (msg.command.equals("leave")) {
             bot.leaveRoom(msg.commandArgs.trim());
-        // List active rooms
+            // List active rooms
         } else if (msg.command.equals("rooms")) {
             String[] rooms = bot.getRooms();
             String response = "";
-            for (int i = 0; i < rooms.length; i++) {
-                response += rooms[i] + "\n";
+            for (String room : rooms) {
+                response += room + "\n";
             }
             bot.sendReply(msg, response);
         }

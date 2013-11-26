@@ -23,6 +23,8 @@
 
 package com.devti.JavaXMPPBot;
 
+import java.nio.file.Path;
+
 /**
  * Main interface to interact with a bot.
  * 
@@ -36,6 +38,13 @@ public interface Bot {
      * @throws Exception
      */
     public void reloadConfig() throws Exception;
+    
+     /**
+     * Returns {@link Logger} for this bot.
+     * 
+     * @return {@link Logger}
+     */       
+    public Logger getLogger();
 
     /**
      * Returns the JID of the bot.
@@ -52,11 +61,11 @@ public interface Bot {
     public String getResource();
     
     /**
-     * Returns path to the configuration file.
+     * Returns bot's unique name (based on the configuration file name).
      * 
-     * @return path to the configuration file
+     * @return bot ID
      */
-    public String getConfigPath();
+    public String getBotId();
     
     /**
      * Returns command prefix (this substring indicates beginning of a command).
