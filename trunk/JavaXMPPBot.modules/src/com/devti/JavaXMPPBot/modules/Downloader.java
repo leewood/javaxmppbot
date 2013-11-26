@@ -20,11 +20,11 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot.modules;
 
 import com.devti.JavaXMPPBot.Bot;
 import com.devti.JavaXMPPBot.Command;
+import com.devti.JavaXMPPBot.Logger;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import java.awt.Graphics2D;
@@ -33,25 +33,27 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.Proxy;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.DigestInputStream;
+import java.security.KeyManagementException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.imageio.ImageIO;
@@ -61,8 +63,9 @@ import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
 public class Downloader extends Module {
-    
-    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
+
+    static private final Map<String, String> defaultConfig = new HashMap<>();
+
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "downloader.db");
@@ -70,8 +73,8 @@ public class Downloader extends Module {
         defaultConfig.put("db-password", null);
         defaultConfig.put("url-pattern", "http://[:a-z0-9%$&_./~()?=+-]+");
         defaultConfig.put("tag-pattern", "\\[\\s*([^\\]]+)\\s*\\]");
-        defaultConfig.put("store-to",  System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
-        defaultConfig.put("filename-format",  "%ts_%s%s");
+        defaultConfig.put("store-to", System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "Downloader");
+        defaultConfig.put("filename-format", "%ts_%s%s");
         defaultConfig.put("dup-reply", "%s is a duplicate of %s (%s) posted at %s by %s");
         defaultConfig.put("save-real-jid", "no");
         defaultConfig.put("accept", "image/jpeg;image/gif;image/png;image/pjpeg");
@@ -146,11 +149,11 @@ public class Downloader extends Module {
         filenameFormat = config.get("filename-format");
         dupReplyFormat = config.get("dup-reply");
         saveRealJID = config.get("save-real-jid").equalsIgnoreCase("yes");
-        extensionsMap =  new HashMap<String, String>();
+        extensionsMap = new HashMap<>();
         if (config.get("extensions-map") != null) {
             String[] a = config.get("extensions-map").split(";");
-            for (int i = 0; i < a.length; i++) {
-                String[] element = a[i].split("=");
+            for (String ext : a) {
+                String[] element = ext.split("=");
                 if (element.length == 2) {
                     extensionsMap.put(element[0], element[1]);
                 }
@@ -165,10 +168,10 @@ public class Downloader extends Module {
         includeTags = (!excludeTags && (tags.length > 0));
         signatureBaseSize = new Byte(config.get("signature-base-size"));
         byte minMatchPercent = new Byte(config.get("signature-min-match-percent"));
-        int maxImageDistance = (int)Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
-        signatureMaxDistance = (int)Math.round(maxImageDistance - maxImageDistance * minMatchPercent / 100);
-        imageSignatures = new HashMap<String, byte[]>();
-        
+        int maxImageDistance = (int) Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
+        signatureMaxDistance = (int) Math.round(maxImageDistance - maxImageDistance * minMatchPercent / 100);
+        imageSignatures = new HashMap<>();
+
         // Disable SSL certificate validation
         if (config.get("disable-ssl-cert-validation").equalsIgnoreCase("yes")) {
             TrustManager[] trustAllCerts = new TrustManager[]{
@@ -195,8 +198,9 @@ public class Downloader extends Module {
                 SSLContext sc = SSLContext.getInstance("SSL");
                 sc.init(null, trustAllCerts, new java.security.SecureRandom());
                 HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't change trust manager for HTTPS connections", e);
+            } catch (KeyManagementException | NoSuchAlgorithmException e) {
+                log.warn("Can't change trust manager for HTTPS connections: "
+                        + e.getLocalizedMessage());
             }
         }
 
@@ -207,8 +211,9 @@ public class Downloader extends Module {
         // Initialize JDBC driver
         try {
             Class.forName(dbDriver).newInstance();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't initialize JDBC driver '" + dbDriver + "'", e);
+        } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+            log.warn("Can't initialize JDBC driver '%s': %s", dbDriver,
+                    e.getLocalizedMessage());
         }
 
         // Load signatures
@@ -220,21 +225,26 @@ public class Downloader extends Module {
                 imageSignatures.put(rs.getString(1), rs.getBytes(2));
             }
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't load image signatures from the DB.", e);
+            log.warn("Can't load image signatures from the DB: "
+                    + e.getLocalizedMessage());
         }
 
         try {
             // Register commands provided by this module
-            bot.registerCommand(new Command("delete_file", "remove a file downloaded by Downloader module", true, this));
+            bot.registerCommand(new Command("delete_file",
+                    "remove a file downloaded by Downloader module",
+                    true, this));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register a command.", e);
+            log.warn("Can't register a command: "
+                    + e.getLocalizedMessage());
         }
 
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register message processor.", e);
+            log.warn("Can't register message processor: "
+                    + e.getLocalizedMessage());
         }
     }
 
@@ -243,24 +253,26 @@ public class Downloader extends Module {
         byte[] signature = new byte[signatureBaseSize * signatureBaseSize * 3];
         try {
             BufferedImage original = ImageIO.read(file);
-            BufferedImage resized = new BufferedImage(signatureBaseSize, signatureBaseSize, BufferedImage.TYPE_INT_RGB);
+            BufferedImage resized = new BufferedImage(signatureBaseSize,
+                    signatureBaseSize, BufferedImage.TYPE_INT_RGB);
             Graphics2D g = resized.createGraphics();
             g.drawImage(original, 0, 0, signatureBaseSize, signatureBaseSize, null);
             int c = 0;
             for (int i = 0; i < signatureBaseSize; i++) {
                 for (int j = 0; j < signatureBaseSize; j++) {
                     pixel = resized.getData().getPixel(i, j, pixel);
-                    signature[c++] = (byte)pixel[0];
-                    signature[c++] = (byte)pixel[1];
-                    signature[c++] = (byte)pixel[2];
+                    signature[c++] = (byte) pixel[0];
+                    signature[c++] = (byte) pixel[1];
+                    signature[c++] = (byte) pixel[2];
                 }
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't create signature for file '" + file.toString() + "'", e);
+        } catch (IOException e) {
+            log.warn("Can't create signature for file '%s': %s",
+                    file.toString(), e.getLocalizedMessage());
         }
         return signature;
     }
-    
+
     public final void addImageSignature(String md5sum, byte[] signature) {
         synchronized (imageSignatures) {
             imageSignatures.put(md5sum, signature);
@@ -270,17 +282,18 @@ public class Downloader extends Module {
                 psAddSignature.setString(1, md5sum);
                 psAddSignature.setBytes(2, signature);
                 psAddSignature.executeUpdate();
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "An error has been occurred during adding signature of '" + md5sum + "' into the DB", e);
+            } catch (SQLException e) {
+                log.warn("An error has been occurred during adding the "
+                        + "signature of '%s' into the DB: %s",
+                        md5sum,
+                        e.getLocalizedMessage());
             }
         }
     }
 
     public String searchDupBySignature(byte[] signature) {
         synchronized (imageSignatures) {
-            Iterator sig = imageSignatures.keySet().iterator();
-            while (sig.hasNext()) {
-                String md5sum = (String)sig.next();
+            for (String md5sum : imageSignatures.keySet()) {
                 byte[] signature2 = imageSignatures.get(md5sum);
                 int d = 0;
                 int c = 0;
@@ -314,13 +327,15 @@ public class Downloader extends Module {
             psSearchRecord.setString(1, md5sum);
             ResultSet rs = psSearchRecord.executeQuery();
             if (rs.next()) {
-                return new String[]{rs.getString(4), rs.getString(3), rs.getString(1), rs.getString(2)};
+                return new String[]{rs.getString(4), rs.getString(3),
+                    rs.getString(1), rs.getString(2)};
             }
         }
         return null;
     }
 
-    protected void addFile(String md5sum, String from, String url, String file, ArrayList<String> tags) throws Exception {
+    protected void addFile(String md5sum, String from, String url,
+            String file, ArrayList<String> tags) throws Exception {
         synchronized (dbDriver) {
             connectToDB();
             psAddRecord.setString(1, md5sum);
@@ -354,14 +369,15 @@ public class Downloader extends Module {
     private void connectToDB() throws Exception {
         // Return if connection is opened already
         try {
-            if (connection != null &&
-                !connection.isClosed() &&
-                (dbDriver.equalsIgnoreCase("org.sqlite.JDBC") || connection.isValid(5))
-               ) {
+            if (connection != null
+                    && !connection.isClosed()
+                    && (dbDriver.equalsIgnoreCase("org.sqlite.JDBC")
+                    || connection.isValid(5))) {
                 return;
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "JDBC connection isn't ready or can't check it.", e);
+        } catch (SQLException e) {
+            log.warn("JDBC connection isn't ready or can't check it: "
+                    + e.getLocalizedMessage());
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -386,7 +402,7 @@ public class Downloader extends Module {
     public boolean processMessage(Message msg) {
         String message = msg.body;
         // Get tags
-        ArrayList<String> messageTags = new ArrayList<String>();
+        ArrayList<String> messageTags = new ArrayList<>();
         Matcher matcher = tagPattern.matcher(message);
         while (matcher.find()) {
             messageTags.add(matcher.group(1));
@@ -394,22 +410,23 @@ public class Downloader extends Module {
 
         // Check tag exclusions
         if (excludeTags) {
-            for (int i = 0; i < tags.length; i++) {
-                if (messageTags.contains(tags[i])) {
-                    logger.log(Level.INFO, "Message contains an excluded tag ({0}), so skip it.", tags[i]);
+            for (String tag : tags) {
+                if (messageTags.contains(tag)) {
+                    log.info("Message contains an excluded tag (%s), "
+                            + "so skip it.", tag);
                     return super.processMessage(msg);
                 }
             }
-        // Check tag inclusions
+            // Check tag inclusions
         } else if (includeTags) {
             boolean skip = true;
-            for (int i = 0; i < tags.length; i++) {
-                if (messageTags.contains(tags[i])) {
+            for (String tag : tags) {
+                if (messageTags.contains(tag)) {
                     skip = false;
                 }
             }
             if (skip) {
-                logger.info("Message doesn't contain any of specified tags, so skip it.");
+                log.info("Message doesn't contain any of specified tags, so skip it.");
                 return super.processMessage(msg);
             }
         }
@@ -418,7 +435,7 @@ public class Downloader extends Module {
         matcher = urlPattern.matcher(message);
         while (matcher.find()) {
             String url = matcher.group();
-            logger.log(Level.INFO, "I have got a new URL {0}.", url);
+            log.info("I have got a new URL " + url);
             DownloaderThread dt = new DownloaderThread(bot, this, url, messageTags, msg);
             dt.start();
         }
@@ -437,20 +454,23 @@ public class Downloader extends Module {
                     psGetMd5ByFilename.setString(1, filename);
                     rs = psGetMd5ByFilename.executeQuery();
                 }
-                if (rs.next()) {
-                    String md5 = rs.getString(1);
-                    deleteFile(md5);
-                    File file = new File(storeTo + File.separator + filename);
-                    if (file.delete()) {
-                        bot.sendReply(msg, "File '" + filename + "' has been deleted.");
-                    } else {
-                        bot.sendReply(msg, "Error: can't delete file '" + filename + "'.");
-                    }
+                if (!rs.next()) {
+                    bot.sendReply(msg, "Error: file '" + filename
+                            + "' isn't found.");
+                    return;
+                }
+                String md5 = rs.getString(1);
+                deleteFile(md5);
+                File file = new File(storeTo + File.separator + filename);
+                if (file.delete()) {
+                    bot.sendReply(msg, "File '" + filename
+                            + "' has been deleted.");
                 } else {
-                    bot.sendReply(msg, "Error: file '" + filename + "' isn't found.");
+                    bot.sendReply(msg, "Error: can't delete file '" + filename + "'.");
                 }
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't perfrom delete_file command.", e);
+                log.warn("Can't perfrom delete_file command.",
+                        e.getLocalizedMessage());
                 bot.sendReply(msg, "Error: can't perfrom delete_file command.");
             }
         }
@@ -460,15 +480,15 @@ public class Downloader extends Module {
     public void onUnload() {
         try {
             connection.close();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't close JDBC connection", e);
+        } catch (SQLException e) {
+            log.warn("Can't close JDBC connection", e.getLocalizedMessage());
         }
     }
 }
 
 class HexCodec {
 
-    private static final char[] kDigits = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+    private static final char[] kDigits = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
     public static String bytesToHex(byte[] raw) {
         int length = raw.length;
@@ -487,38 +507,43 @@ class HexCodec {
 
 class DownloaderThread extends Thread {
 
-    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
-    private Bot bot;
-    private Downloader downloader;
-    private String url;
-    private ArrayList<String> tags;
-    private Message message;
-    private ArrayList<String> acceptableTypes;
-    private ArrayList<String> compareAsImages;
+    private final Bot bot;
+    private final Logger logger;
+    private final Downloader downloader;
+    private final String url;
+    private final ArrayList<String> tags;
+    private final Message message;
+    private final ArrayList<String> acceptableTypes;
+    private final ArrayList<String> compareAsImages;
 
-    public DownloaderThread(Bot bot, Downloader downloader, String url, ArrayList<String> tags, Message message) {
+    public DownloaderThread(Bot bot, Downloader downloader, String url,
+            ArrayList<String> tags, Message message) {
         this.bot = bot;
+        this.logger = bot.getLogger();
         this.downloader = downloader;
         this.message = message;
         this.url = url;
         this.tags = tags;
-        this.setName(this.getClass().getName() + "(" + bot.getConfigPath() + ")(" + url + ")");
+        this.setName(this.getClass().getName() + "(" + bot.getBotId()
+                + ")(" + url + ")");
 
         if (downloader.getConfigProperty("accept") == null) {
-            acceptableTypes = new ArrayList<String>();
+            acceptableTypes = new ArrayList<>();
         } else {
-            acceptableTypes = new ArrayList<String>(Arrays.asList(downloader.getConfigProperty("accept").split(";")));
+            acceptableTypes = new ArrayList<>(Arrays.asList(
+                    downloader.getConfigProperty("accept").split(";")));
         }
-        
+
         if (downloader.getConfigProperty("compare-as-images") == null) {
-            compareAsImages = new ArrayList<String>();
+            compareAsImages = new ArrayList<>();
         } else {
-            compareAsImages = new ArrayList<String>(Arrays.asList(downloader.getConfigProperty("compare-as-images").split(";")));
+            compareAsImages = new ArrayList<>(Arrays.asList(
+                    downloader.getConfigProperty("compare-as-images").split(";")));
         }
     }
 
     public static int bytesToInt(byte[] b) {
-        return b[0]<<24 | (b[1]&0xff)<<16 | (b[2]&0xff)<<8 | (b[3]&0xff);
+        return b[0] << 24 | (b[1] & 0xff) << 16 | (b[2] & 0xff) << 8 | (b[3] & 0xff);
     }
 
     @Override
@@ -527,173 +552,205 @@ class DownloaderThread extends Thread {
         HttpURLConnection connection;
         try {
             u = new URL(url);
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't create URI object for '" + url + "'", e);
+        } catch (MalformedURLException e) {
+            logger.warn("Can't create URI object for '%s': %",
+                    url, e.getLocalizedMessage());
             return;
         }
         try {
             InetSocketAddress proxySocketAddress;
             if (downloader.getConfigProperty("proxy.host") != null) {
-                proxySocketAddress = new InetSocketAddress(downloader.getConfigProperty("proxy.host"),
-                                                           new Integer(downloader.getConfigProperty("proxy.port"))
-                                                          );
+                proxySocketAddress = new InetSocketAddress(
+                        downloader.getConfigProperty("proxy.host"),
+                        new Integer(downloader.getConfigProperty("proxy.port"))
+                );
 
             } else {
                 proxySocketAddress = new InetSocketAddress(0);
             }
             Proxy proxy;
             String proxyType = downloader.getConfigProperty("proxy.type");
-            if (proxyType.equalsIgnoreCase("NONE") || proxyType.equalsIgnoreCase("DIRECT")) {
+            if (proxyType.equalsIgnoreCase("NONE")
+                    || proxyType.equalsIgnoreCase("DIRECT")) {
                 proxy = Proxy.NO_PROXY;
             } else {
                 proxy = new Proxy(Proxy.Type.valueOf(proxyType),
-                                  proxySocketAddress
-                                 );
+                        proxySocketAddress
+                );
             }
-            connection = (HttpURLConnection)u.openConnection(proxy);
+            connection = (HttpURLConnection) u.openConnection(proxy);
             connection.connect();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't open connection to '" + url + "'", e);
+        } catch (IOException | NumberFormatException e) {
+            logger.warn("Can't open connection to '%s': %s",
+                    url, e.getLocalizedMessage());
             return;
         }
         String type = connection.getContentType();
-        if (type != null) {
-            boolean acceptable = false;
-            String[] types = type.split(";");
-            for (int j = 0; j < types.length; j++) {
-                if (acceptableTypes.contains(types[j])) {
-                    logger.log(Level.INFO, "OK! Type of {0} is {1}.", new Object[]{url, types[j]});
-                    Integer sizeLimit = new Integer(downloader.getConfigProperty("size-limit"));
-                    if ((sizeLimit == 0) || connection.getContentLength() < sizeLimit) {
-                        BufferedInputStream in = null;
-                        BufferedOutputStream out = null;
-                        File file = null;
-                        String md5sum = null;
-                        boolean hasBeenAdded = false;
-                        try {
-                            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-                            messageDigest.reset();
-                            file = File.createTempFile("javaxmppbot_Downloader_", ".tmp", new File(downloader.storeTo));
-                            String tmpFilename = file.getAbsolutePath();
-                            in = new BufferedInputStream(new DigestInputStream(connection.getInputStream(), messageDigest));
-                            out = new BufferedOutputStream(new FileOutputStream(file));
-                            int i;
-                            int count = 0;
-                            while ((i = in.read()) != -1) {
-                                count++;
-                                if ((sizeLimit > 0) && (count > sizeLimit)) {
-                                    throw new Exception("File is larger then limit (" + sizeLimit.toString() + " bytes)");
-                                }
-                                out.write(i);
-                            }
-                            out.close();
-
-                            // Check real file type
-                            URLConnection fileConnection = file.toURI().toURL().openConnection();
-                            String realFileType = fileConnection.getContentType();
-                            fileConnection.getInputStream().close();
-                            if (!acceptableTypes.contains(realFileType)) {
-                                throw new Exception("Real file type (" + realFileType + ") isn't acceptable");
-                            }
-                            logger.log(Level.INFO, "OK! Real file type is {0}.", realFileType);
-
-                            // Get extension if it is defined for this file type
-                            String extension = downloader.getExtension(realFileType);
-
-                            md5sum = HexCodec.bytesToHex(messageDigest.digest());
-                            logger.log(Level.INFO, "OK! File {0} saved temporary as {1} MD5={2}.", new Object[]{url, tmpFilename, md5sum});
-                            String[] dup = downloader.searchDup(md5sum);
-                            if (dup != null) {
-                                // This is duplicate, so send reply and delete temporary file
-                                logger.log(Level.INFO, "File {0} ({1}) is a duplicate.", new Object[]{url, md5sum.toString()});
-                                String from = dup[3];
-                                if (message.type == Message.Type.groupchat) {
-                                    if (from.startsWith(message.room + "/")) {
-                                        from = from.substring((message.room + "/").length());
-                                    }
-
-                                }
-                                bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
-                            } else {
-                                // Try to compare with another images
-                                boolean isntDuplicate = true;
-                                byte[] signature;
-                                if (compareAsImages.contains(realFileType)) {
-                                    signature = downloader.createImageSignature(file);
-                                    String sigDup = downloader.searchDupBySignature(signature);
-                                    if (sigDup != null) {
-                                        // This is duplicate, so send reply
-                                        dup = downloader.searchDup(sigDup);
-                                        logger.log(Level.INFO, "File {0} ({1}) is a modified duplicate of {2}.", new Object[]{url, md5sum, sigDup});
-                                        String from = dup[3];
-                                        if (message.type == Message.Type.groupchat) {
-                                            if (from.startsWith(message.room + "/")) {
-                                                from = from.substring((message.room + "/").length());
-                                            }
-
-                                        }
-                                        bot.sendReply(message, String.format(downloader.dupReplyFormat, url, dup[0], dup[1], dup[2], from));
-                                        isntDuplicate = false;
-                                    } else {
-                                        downloader.addImageSignature(md5sum, signature);
-                                        hasBeenAdded = true;
-                                    }
-                                }
-
-                                // This isn't duplicate, save it
-                                if (isntDuplicate) {
-                                    String newFilename = String.format(downloader.filenameFormat, new Date(), md5sum, extension);
-                                    String newFilepath = downloader.storeTo + File.separator + newFilename;
-                                    String from;
-                                    if (downloader.saveRealJID) {
-                                        from = message.fromJID;
-                                    } else {
-                                        from = message.from;
-                                    }
-                                    downloader.addFile(md5sum, from, url, newFilename, tags);
-                                    hasBeenAdded = true;
-                                    if (file.renameTo(new File(newFilepath))) {
-                                        logger.log(Level.INFO, "File {0} renamed to {1}.", new Object[]{tmpFilename, newFilepath});
-                                    } else {
-                                        throw new Exception("Can't rename file '" + tmpFilename + "' to '" + newFilepath + "'");
-                                    }
-                                    file = null;
-                                }
-                            }
-                        } catch (Exception e) {
-                            logger.log(Level.WARNING, "An error occurred during processing file '" + url + "'", e);
-                            if (hasBeenAdded) {
-                                try {
-                                    downloader.deleteFile(md5sum);
-                                } catch (Exception e2) {
-                                    logger.log(Level.WARNING, "Can't delete records for md5='" + md5sum + "'", e);
-                                }
-                            }
-                        } finally {
-                            try {
-                                if (in != null) {
-                                    in.close();
-                                }
-                                if (out != null) {
-                                    out.close();
-                                }
-                                if (file != null) {
-                                    file.delete();
-                                }
-                            } catch (Exception e) {
-                                logger.log(Level.WARNING, "An error occurred during processing file '" + url + "'", e);
-                            }
-                        }
-                    } else {
-                        logger.log(Level.INFO, "Size of {0} ({1}) is bigger than allowed limit {2}.", new Object[]{url, connection.getContentLength(), downloader.getConfigProperty("size-limit")});
+        if (type == null) {
+            logger.warn("Can't get content type for URL " + url);
+            connection.disconnect();
+        }
+        boolean acceptable = false;
+        String[] types = type.split(";");
+        for (String type1 : types) {
+            if (!acceptableTypes.contains(type1)) {
+                continue;
+            }
+            logger.info("OK! Type of %s is %s.", url, type1);
+            Integer sizeLimit = new Integer(
+                    downloader.getConfigProperty("size-limit"));
+            if ((sizeLimit > 0) && connection.getContentLength() > sizeLimit) {
+                logger.info("Size of %s (%d) is bigger than allowed limit %d.",
+                        url, connection.getContentLength(), sizeLimit);
+                break;
+            }
+            BufferedInputStream in = null;
+            BufferedOutputStream out = null;
+            File file = null;
+            String md5sum = null;
+            boolean hasBeenAdded = false;
+            try {
+                MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+                messageDigest.reset();
+                file = File.createTempFile(
+                        "javaxmppbot_Downloader_", ".tmp",
+                        new File(downloader.storeTo));
+                String tmpFilename = file.getAbsolutePath();
+                in = new BufferedInputStream(
+                        new DigestInputStream(
+                                connection.getInputStream(),
+                                messageDigest));
+                out = new BufferedOutputStream(
+                        new FileOutputStream(file));
+                int i;
+                int count = 0;
+                while ((i = in.read()) != -1) {
+                    count++;
+                    if ((sizeLimit > 0) && (count > sizeLimit)) {
+                        throw new Exception("File is larger then limit (" +
+                                sizeLimit.toString() + " bytes)");
                     }
-                    acceptable = true;
-                    break;
+                    out.write(i);
+                }
+                out.close();
+
+                // Check real file type
+                URLConnection fileConnection = file.toURI().toURL().openConnection();
+                String realFileType = fileConnection.getContentType();
+                fileConnection.getInputStream().close();
+                if (!acceptableTypes.contains(realFileType)) {
+                    throw new Exception("Real file type (" + realFileType +
+                            ") isn't acceptable");
+                }
+                logger.info("OK! Real file type is " + realFileType);
+
+                // Get extension if it is defined for this file type
+                String extension = downloader.getExtension(realFileType);
+
+                md5sum = HexCodec.bytesToHex(messageDigest.digest());
+                logger.info("OK! File %s saved temporary as %s MD5=%s.",
+                        url, tmpFilename, md5sum);
+                String[] dup = downloader.searchDup(md5sum);
+                if (dup != null) {
+                    // This is duplicate, so send reply and delete temporary file
+                    logger.info("File %s (%s) is a duplicate.",
+                            url, md5sum);
+                    String from = dup[3];
+                    if (message.type == Message.Type.groupchat) {
+                        if (from.startsWith(message.room + "/")) {
+                            from = from.substring((message.room + "/").length());
+                        }
+
+                    }
+                    bot.sendReply(message,
+                            String.format(downloader.dupReplyFormat,
+                                    url, dup[0], dup[1], dup[2], from));
+                } else {
+                    // Try to compare with another images
+                    boolean isntDuplicate = true;
+                    byte[] signature;
+                    if (compareAsImages.contains(realFileType)) {
+                        signature = downloader.createImageSignature(file);
+                        String sigDup = downloader.searchDupBySignature(signature);
+                        if (sigDup != null) {
+                            // This is duplicate, so send reply
+                            dup = downloader.searchDup(sigDup);
+                            logger.info("File %s (%s) is a modified duplicate of %s.",
+                                    url, md5sum, sigDup);
+                            String from = dup[3];
+                            if (message.type == Message.Type.groupchat) {
+                                if (from.startsWith(message.room + "/")) {
+                                    from = from.substring((message.room + "/").length());
+                                }
+
+                            }
+                            bot.sendReply(message, String.format(
+                                    downloader.dupReplyFormat,
+                                    url, dup[0], dup[1], dup[2], from));
+                            isntDuplicate = false;
+                        } else {
+                            downloader.addImageSignature(md5sum, signature);
+                            hasBeenAdded = true;
+                        }
+                    }
+
+                    // This isn't duplicate, save it
+                    if (isntDuplicate) {
+                        String newFilename = String.format(
+                                downloader.filenameFormat,
+                                new Date(), md5sum, extension);
+                        String newFilepath = downloader.storeTo +
+                                File.separator + newFilename;
+                        String from;
+                        if (downloader.saveRealJID) {
+                            from = message.fromJID;
+                        } else {
+                            from = message.from;
+                        }
+                        downloader.addFile(md5sum, from, url, newFilename, tags);
+                        hasBeenAdded = true;
+                        if (file.renameTo(new File(newFilepath))) {
+                            logger.info("File %s renamed to %s.",
+                                    tmpFilename, newFilepath);
+                        } else {
+                            throw new Exception("Can't rename file '" +
+                                    tmpFilename + "' to '" + newFilepath + "'");
+                        }
+                        file = null;
+                    }
+                }
+            } catch (Exception e) {
+                logger.info("An error occurred during processing file '%s': %s",
+                        url, e.getLocalizedMessage());
+                if (hasBeenAdded) {
+                    try {
+                        downloader.deleteFile(md5sum);
+                    } catch (Exception e2) {
+                        logger.warn("Can't delete records for md5='%s': %s",
+                                md5sum, e2.getLocalizedMessage());
+                    }
+                }
+            } finally {
+                try {
+                    if (in != null) {
+                        in.close();
+                    }
+                    if (out != null) {
+                        out.close();
+                    }
+                    if (file != null) {
+                        file.delete();
+                    }
+                } catch (IOException e) {
+                    logger.warn("An error occurred during processing file '%s': %s",
+                            url, e.getLocalizedMessage());
                 }
             }
-            if (!acceptable) {
-                logger.log(Level.INFO, "Type of {0} isn''t acceptable ({1}).", new Object[]{url, type});
-            }
+            acceptable = true;
+            break;
+        }
+        if (!acceptable) {
+            logger.info("Type of %s isn''t acceptable (%s).", url, type);
         }
         connection.disconnect();
     }

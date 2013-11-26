@@ -33,10 +33,8 @@ import org.jivesoftware.smack.packet.Packet;
 import org.jivesoftware.smackx.muc.DiscussionHistory;
 import org.jivesoftware.smackx.muc.MultiUserChat;
 
-
-
 class ParticipantListener implements PacketListener {
-    
+
     private final Room room;
 
     public ParticipantListener(Room room) {
@@ -47,7 +45,7 @@ class ParticipantListener implements PacketListener {
     public void processPacket(Packet packet) {
         room.parseOccupants();
     }
-    
+
 }
 
 public class Room extends MultiUserChat {
@@ -89,7 +87,8 @@ public class Room extends MultiUserChat {
     }
 
     @Override
-    public synchronized void join(String nickname, String password, DiscussionHistory history, long timeout) throws XMPPException {
+    public synchronized void join(String nickname, String password,
+            DiscussionHistory history, long timeout) throws XMPPException {
         super.join(nickname, password, history, timeout);
         parseOccupants();
         super.addParticipantListener(participantListener);

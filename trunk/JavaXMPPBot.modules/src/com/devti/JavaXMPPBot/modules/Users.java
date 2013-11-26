@@ -20,7 +20,6 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot.modules;
 
 import com.devti.JavaXMPPBot.Bot;
@@ -29,17 +28,19 @@ import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import java.io.File;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
 
 public class Users extends Module {
-    
-    static private final Map<String, String> defaultConfig = new HashMap<String, String>();
+
+    static private final Map<String, String> defaultConfig = new HashMap<>();
+
     static {
         defaultConfig.put("db-driver", "org.sqlite.JDBC");
         defaultConfig.put("db-url", "jdbc:sqlite:" + System.getProperty("user.home") + File.separator + "JavaXMPPBot" + File.separator + "users.db");
@@ -55,7 +56,7 @@ public class Users extends Module {
         defaultConfig.put("update-approve", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `jid`=? AND `approved`=0");
         defaultConfig.put("update-approve-all", "UPDATE `javaxmppbot_users` SET `approved`=1 WHERE `approved`=0");
     }
-    
+
     private Connection connection;
     private PreparedStatement psCreate;
     private PreparedStatement psInsert;
@@ -66,7 +67,7 @@ public class Users extends Module {
     private PreparedStatement psSelectUnapproved;
     private PreparedStatement psApprove;
     private PreparedStatement psApproveAll;
-    
+
     private final String dbUrl;
     private final String dbDriver;
     private final String dbUsername;
@@ -74,7 +75,7 @@ public class Users extends Module {
 
     public Users(Bot bot, Map<String, String> cfg) {
         super(bot, cfg, defaultConfig);
-        
+
         // Get properties
         dbDriver = config.get("db-driver");
         dbUrl = config.get("db-url");
@@ -84,40 +85,53 @@ public class Users extends Module {
         // Initialize JDBC driver
         try {
             Class.forName(dbDriver).newInstance();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't initialize JDBC driver '" + dbDriver + "'", e);
+        } catch (ClassNotFoundException | InstantiationException |
+                IllegalAccessException e) {
+            log.warn("Can't initialize JDBC driver '%s': %s",
+                    dbDriver, e.getLocalizedMessage());
         }
 
         // Connect to DB
         try {
             connectToDB();
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't prepare DB connection.", e);
+            log.warn("Can't prepare DB connection: " + e.getLocalizedMessage());
         };
-   
+
         // Register commands provided by this module
         try {
-            bot.registerCommand(new Command("register", "user registration", false, this));
-            bot.registerCommand(new Command("set_nick", "change your nickname", false, this));
-            bot.registerCommand(new Command("list_unapproved", "list unapproved user registrations", true, this));
-            bot.registerCommand(new Command("approve", "approve user registration", true, this));
-            bot.registerCommand(new Command("approve_all", "approve all unaprroved user registration", true, this));
+            bot.registerCommand(new Command(
+                    "register", "user registration",
+                    false, this));
+            bot.registerCommand(new Command(
+                    "set_nick", "change your nickname",
+                    false, this));
+            bot.registerCommand(new Command(
+                    "list_unapproved", "list unapproved user registrations",
+                    true, this));
+            bot.registerCommand(new Command(
+                    "approve", "approve user registration",
+                    true, this));
+            bot.registerCommand(new Command(
+                    "approve_all", "approve all unaprroved user registration",
+                    true, this));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register a command.", e);
+            log.warn("Can't register a command: " + e.getLocalizedMessage());
         }
     }
 
     private void connectToDB() throws Exception {
         // Return if connection is opened already
         try {
-            if (connection != null &&
-                !connection.isClosed() &&
-                (dbDriver.equalsIgnoreCase("org.sqlite.JDBC") || connection.isValid(5))
-               ) {
+            if (connection != null
+                    && !connection.isClosed()
+                    && (dbDriver.equalsIgnoreCase("org.sqlite.JDBC")
+                    || connection.isValid(5))) {
                 return;
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "JDBC connection isn't ready or can't check it.", e);
+        } catch (SQLException e) {
+            log.warn("JDBC connection isn't ready or can't check it: "
+                    + e.getLocalizedMessage());
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -133,146 +147,180 @@ public class Users extends Module {
         psApprove = connection.prepareStatement(config.get("update-approve"));
         psApproveAll = connection.prepareStatement(config.get("update-approve-all"));
     }
-    
+
     @Override
     public void processCommand(Message msg) {
         if (msg.command.equals("register")) {
             if (msg.fromJID == null) {
-                bot.sendReply(msg, "Registration error: can't determinate your real JID.");
-            } else if ((msg.commandArgs == null) || msg.commandArgs.equals("")) {
-                bot.sendReply(msg, "Registration error: password can't be empty.");
-            } else {
-                String password = null;
+                bot.sendReply(msg,
+                        "Registration error: can't determinate your real JID.");
+                return;
+            }
+            if ((msg.commandArgs == null)
+                    || msg.commandArgs.equals("")) {
+                bot.sendReply(msg,
+                        "Registration error: password can't be empty.");
+                return;
+            }
+            String password = null;
+            try {
+                synchronized (dbDriver) {
+                    connectToDB();
+                    psSelect.setString(1, msg.fromJID);
+                    ResultSet rs = psSelect.executeQuery();
+                    if (rs.next()) {
+                        password = rs.getString(1);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
+            }
+            String md5sum = null;
+            try {
+                MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+                md5sum = HexCodec.bytesToHex(
+                        messageDigest.digest(msg.commandArgs.getBytes()));
+            } catch (NoSuchAlgorithmException e) {
+                log.warn("Can't get MD5 digest for password: "
+                        + e.getLocalizedMessage());
+            }
+            if (password == null) {
                 try {
                     synchronized (dbDriver) {
                         connectToDB();
-                        psSelect.setString(1, msg.fromJID);
-                        ResultSet rs = psSelect.executeQuery();
-                        if (rs.next()) {
-                            password = rs.getString(1);
-                        }
+                        psInsert.setString(1, msg.fromJID);
+                        psInsert.setString(2, msg.fromJID);
+                        psInsert.setString(3, md5sum);
+                        psInsert.executeUpdate();
                     }
                 } catch (Exception e) {
-                    logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                    log.warn("Can't execute JDBC statement: "
+                            + e.getLocalizedMessage());
                 }
-                String md5sum = null;
-                try {
-                    MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-                    md5sum = HexCodec.bytesToHex(messageDigest.digest(msg.commandArgs.getBytes()));
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "Can't get MD5 digest for password", e);
-                }
-                if (password == null) {
-                    try {
-                        synchronized (dbDriver) {
-                            connectToDB();
-                            psInsert.setString(1, msg.fromJID);
-                            psInsert.setString(2, msg.fromJID);
-                            psInsert.setString(3, md5sum);
-                            psInsert.executeUpdate();
-                        }
-                    } catch (Exception e) {
-                        logger.log(Level.WARNING, "Can't execute JDBC statement", e);
-                    }
-                    bot.sendReply(msg, "User " + msg.fromJID + " registered successfully.");
-                } else {
-                    try {
-                        synchronized (dbDriver) {
-                            connectToDB();
-                            psUpdate.setString(1, md5sum);
-                            psUpdate.setString(2, msg.fromJID);
-                            psUpdate.executeUpdate();
-                        }
-                    } catch (Exception e) {
-                        logger.log(Level.WARNING, "Can't execute JDBC statement", e);
-                    }
-                    bot.sendReply(msg, "Password for user " + msg.fromJID + " updated successfully.");
-                }
+                bot.sendReply(msg, "User " + msg.fromJID
+                        + " registered successfully.");
+                return;
             }
-        } else if (msg.command.equals("set_nick")) {
+            try {
+                synchronized (dbDriver) {
+                    connectToDB();
+                    psUpdate.setString(1, md5sum);
+                    psUpdate.setString(2, msg.fromJID);
+                    psUpdate.executeUpdate();
+                }
+            } catch (Exception e) {
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
+            }
+            bot.sendReply(msg, "Password for user " + msg.fromJID
+                    + " updated successfully.");
+            return;
+        }
+        if (msg.command.equals("set_nick")) {
             if (msg.fromJID == null) {
                 bot.sendReply(msg, "Error: can't determinate your real JID.");
-            } else if ((msg.commandArgs == null) || msg.commandArgs.equals("")) {
+                return;
+            }
+            if ((msg.commandArgs == null) || msg.commandArgs.equals("")) {
                 bot.sendReply(msg, "Error: nick can't be empty.");
-            } else {
-                String password = null;
+                return;
+            }
+            String password = null;
+            try {
+                synchronized (dbDriver) {
+                    connectToDB();
+                    psSelect.setString(1, msg.fromJID);
+                    ResultSet rs = psSelect.executeQuery();
+                    if (rs.next()) {
+                        password = rs.getString(1);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
+            }
+            if (password == null) {
+                bot.sendReply(msg, "Error: you aren't registered.");
+                return;
+            }
+            String jid = null;
+            try {
+                synchronized (dbDriver) {
+                    connectToDB();
+                    psSelectByNick.setString(1, msg.commandArgs);
+                    ResultSet rs = psSelectByNick.executeQuery();
+                    if (rs.next()) {
+                        jid = rs.getString(1);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
+            }
+            if (jid == null) {
                 try {
                     synchronized (dbDriver) {
                         connectToDB();
-                        psSelect.setString(1, msg.fromJID);
-                        ResultSet rs = psSelect.executeQuery();
-                        if (rs.next()) {
-                            password = rs.getString(1);
-                        }
+                        psUpdateNick.setString(1, msg.commandArgs);
+                        psUpdateNick.setString(2, msg.fromJID);
+                        psUpdateNick.executeUpdate();
                     }
                 } catch (Exception e) {
-                    logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                    log.warn("Can't execute JDBC statement: "
+                            + e.getLocalizedMessage());
                 }
-                if (password == null) {
-                    bot.sendReply(msg, "Error: you aren't registered.");
-                } else {
-                    String jid = null;
-                    try {
-                        synchronized (dbDriver) {
-                            connectToDB();
-                            psSelectByNick.setString(1, msg.commandArgs);
-                            ResultSet rs = psSelectByNick.executeQuery();
-                            if (rs.next()) {
-                                jid = rs.getString(1);
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.log(Level.WARNING, "Can't execute JDBC statement", e);
-                    }
-                    if (jid == null) {
-                        try {
-                            synchronized (dbDriver) {
-                                connectToDB();
-                                psUpdateNick.setString(1, msg.commandArgs);
-                                psUpdateNick.setString(2, msg.fromJID);
-                                psUpdateNick.executeUpdate();
-                            }
-                        } catch (Exception e) {
-                            logger.log(Level.WARNING, "Can't execute JDBC statement", e);
-                        }
-                        bot.sendReply(msg, "Nickname of user " + msg.fromJID + " changed to " + msg.commandArgs);
-                    } else if (jid.equalsIgnoreCase(msg.fromJID)) {
-                        bot.sendReply(msg, "Error: user " + msg.fromJID + " already has same nick.");
-                    } else {
-                        bot.sendReply(msg, "Error: nick " + msg.commandArgs + " already registered for another user.");
-                    }
-                }
+                bot.sendReply(msg, "Nickname of user " + msg.fromJID
+                        + " changed to " + msg.commandArgs);
+                return;
             }
-        } else if (msg.command.equals("list_unapproved")) {
+            if (jid.equalsIgnoreCase(msg.fromJID)) {
+                bot.sendReply(msg, "Error: user " + msg.fromJID
+                        + " already has same nick.");
+                return;
+            }
+            bot.sendReply(msg, "Error: nick " + msg.commandArgs
+                    + " already registered for another user.");
+            return;
+        }
+        if (msg.command.equals("list_unapproved")) {
             String message = "";
             try {
                 synchronized (dbDriver) {
                     connectToDB();
                     ResultSet rs = psSelectUnapproved.executeQuery();
                     while (rs.next()) {
-                        message += "\n" + rs.getString(1) + " (" + rs.getString(2) + ")";
+                        message += "\n" + rs.getString(1)
+                                + " (" + rs.getString(2) + ")";
                     }
                 }
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
             }
             if (message.isEmpty()) {
                 bot.sendReply(msg, "There aren't unapproved user registrations.");
-            } else {
-                bot.sendReply(msg, "Unapproved users:" + message);
+                return;
             }
-        } else if (msg.command.equals("approve")) {
+            bot.sendReply(msg, "Unapproved users:" + message);
+            return;
+        }
+        if (msg.command.equals("approve")) {
             try {
                 synchronized (dbDriver) {
                     connectToDB();
                     psApprove.setString(1, msg.commandArgs);
                     psApprove.executeUpdate();
                 }
-                bot.sendReply(msg, "Registration for user '" + msg.commandArgs + "' has been approved.");
+                bot.sendReply(msg, "Registration for user '" + msg.commandArgs
+                        + "' has been approved.");
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
             }
-        } else if (msg.command.equals("approve_all")) {
+            return;
+        }
+        if (msg.command.equals("approve_all")) {
             try {
                 synchronized (dbDriver) {
                     connectToDB();
@@ -280,8 +328,10 @@ public class Users extends Module {
                 }
                 bot.sendReply(msg, "All unapproved user registrations have been approved.");
             } catch (Exception e) {
-                logger.log(Level.WARNING, "Can't execute JDBC statement", e);
+                log.warn("Can't execute JDBC statement: "
+                        + e.getLocalizedMessage());
             }
+            return;
         }
     }
 
@@ -289,9 +339,9 @@ public class Users extends Module {
     public void onUnload() {
         try {
             connection.close();
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't close JDBC connection", e);
+        } catch (SQLException e) {
+            log.warn("Can't close JDBC connection: " + e.getLocalizedMessage());
         }
     }
- 
+
 }

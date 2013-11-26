@@ -20,58 +20,68 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot;
 
-import java.util.logging.Logger;
-import java.util.logging.Level;
+import java.io.IOException;
 import org.jivesoftware.smack.PacketListener;
 import org.jivesoftware.smack.packet.Packet;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import java.io.StringReader;
+import javax.xml.parsers.ParserConfigurationException;
+import org.w3c.dom.DOMException;
 import org.xml.sax.InputSource;
-
+import org.xml.sax.SAXException;
 
 public class PacketProcessor implements PacketListener {
 
-    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
-    private Bot bot;
+    private final Bot bot;
+    private final Logger logger;
 
     public PacketProcessor(Bot bot) {
         this.bot = bot;
+        this.logger = bot.getLogger();
     }
 
     @Override
     public void processPacket(Packet packet) {
         try {
             String raw = packet.toXML();
-            logger.log(Level.INFO, "Have got a new packet: {0}", raw);
-            Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(new InputSource(new StringReader(raw)));
+            logger.info("Have got a new packet: " + raw);
+            Document document = DocumentBuilderFactory.
+                    newInstance().newDocumentBuilder().
+                    parse(new InputSource(new StringReader(raw)));
             Node node = document.getFirstChild();
             if (node.getNodeName().equalsIgnoreCase("message")) {
                 MessageProcessor mp = new MessageProcessor(bot, node);
                 mp.start();
             } else if (node.getNodeName().equalsIgnoreCase("presence")) {
-                if ((node.getAttributes().getNamedItem("type") != null) && node.getAttributes().getNamedItem("type").getTextContent().equalsIgnoreCase("unavailable")) {
-                    String from = node.getAttributes().getNamedItem("from").getTextContent();
+                if ((node.getAttributes().getNamedItem("type") != null)
+                        && node.getAttributes().getNamedItem("type").
+                        getTextContent().
+                        equalsIgnoreCase("unavailable")) {
+                    String from = node.getAttributes().getNamedItem("from").
+                            getTextContent();
                     String[] rooms = bot.getRooms();
                     for (int i = 0; i < rooms.length; i++) {
-                        if (from.equalsIgnoreCase(rooms[i] +"/"+bot.getResource())) {
+                        if (from.equalsIgnoreCase(rooms[i] + "/" + bot.getResource())) {
+                            bot.leaveRoom(rooms[i]);
                             try {
-                                bot.leaveRoom(rooms[i]);
                                 Thread.sleep(1000);
-                                bot.joinRoom(rooms[i]);
-                            } catch (Exception e) {
-                                logger.log(Level.WARNING, "Can't join to room '" + rooms[i] + "'", e);
+                            } catch (InterruptedException e) {
+                                logger.warn("Sleep has been interrupted: "
+                                        + e.getLocalizedMessage());
                             }
+                            bot.joinRoom(rooms[i]);
                         }
                     }
                 }
             }
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "An error occurred during packet process", e);
+        } catch (ParserConfigurationException | SAXException | IOException |
+                DOMException e) {
+            logger.warn("An error occurred during packet process: " +
+                    e.getLocalizedMessage());
         }
     }
 

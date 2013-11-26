@@ -20,26 +20,21 @@
  *  $Id$
  *
  */
-
 package com.devti.JavaXMPPBot;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.jivesoftware.smack.util.StringUtils;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-
 public class MessageProcessor extends Thread {
 
-    private static final Logger logger = Logger.getLogger("JavaXMPPBot");
     Node xmppMessage;
     Bot bot;
 
     public MessageProcessor(Bot bot, Node message) {
         this.bot = bot;
         this.xmppMessage = message;
-        this.setName(this.getClass().getName() + "(" + bot.getConfigPath() + ")");
+        this.setName(this.getClass().getName() + "(" + bot.getBotId() + ")");
     }
 
     @Override
@@ -77,29 +72,32 @@ public class MessageProcessor extends Thread {
                         message.commandArgs = args;
                     }
                 }
-                
+
                 String jid = StringUtils.parseBareAddress(message.from);
                 String[] rooms = bot.getRooms();
-                for (int i = 0; i < rooms.length; i++) {
-                    if (jid.equalsIgnoreCase(rooms[i])) {
+                for (String room : rooms) {
+                    if (jid.equalsIgnoreCase(room)) {
                         message.room = jid;
                         break;
                     }
                 }
-                
+
                 // Private message
                 if (message.room == null) {
                     message.fromJID = jid;
                     message.fromResource = StringUtils.parseResource(message.from);
                     message.isForMe = true;
-                // Group chat message
+                    // Group chat message
                 } else {
                     message.nick = StringUtils.parseResource(message.from);
-                    message.fromJID = StringUtils.parseBareAddress(bot.getRoom(message.room).getRealJID(message.from));
-                    message.isForMe = (message.body.startsWith(bot.getNickname(message.room)));
+                    message.fromJID = StringUtils.parseBareAddress(
+                            bot.getRoom(message.room).getRealJID(message.from));
+                    message.isForMe = (message.body.startsWith(
+                            bot.getNickname(message.room)));
                 }
                 // Ignore self messages and process message through all modules
-                if (!((message.type == Message.Type.groupchat) && message.nick.equals(bot.getNickname(message.room)))) {
+                if (!((message.type == Message.Type.groupchat)
+                        && message.nick.equals(bot.getNickname(message.room)))) {
                     // Process through all registred message processors if it isn't command
                     if (message.command == null) {
                         Module[] modules = bot.getMessageProcessors();
@@ -108,23 +106,27 @@ public class MessageProcessor extends Thread {
                                 break;
                             }
                         }
-                    // Search specified command in registred commands
+                        // Search specified command in registred commands
                     } else {
                         Command command = bot.getCommand(message.command);
                         if (command == null) {
-                            bot.sendReply(message, "Command '" + message.command + "' isn't found.");
+                            bot.sendReply(message, "Command '"
+                                    + message.command + "' isn't found.");
                         } else {
-                            if (!command.ownerOnly || bot.isOwner(message.fromJID)) {
+                            if (!command.ownerOnly
+                                    || bot.isOwner(message.fromJID)) {
                                 command.module.processCommand(message);
                             } else {
-                                bot.sendReply(message, "This command isn't allowed to you.");
+                                bot.sendReply(message,
+                                        "This command isn't allowed to you.");
                             }
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            logger.log(Level.WARNING, "An error occurred during process a message", e);
+            bot.getLogger().warn("An error occurred during process a message: "
+                    + e.getLocalizedMessage());
         }
     }
 

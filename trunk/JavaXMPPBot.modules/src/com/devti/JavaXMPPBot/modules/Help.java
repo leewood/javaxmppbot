@@ -27,7 +27,6 @@ import com.devti.JavaXMPPBot.Command;
 import com.devti.JavaXMPPBot.Message;
 import com.devti.JavaXMPPBot.Module;
 import java.util.Map;
-import java.util.logging.Level;
 
 public class Help extends Module {
 
@@ -35,9 +34,10 @@ public class Help extends Module {
         super(bot, cfg);
         try {
             // Register commands provided by this module
-            bot.registerCommand(new Command("help", "list available commands", false, this));
+            bot.registerCommand(new Command("help", "list available commands",
+                    false, this));
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Can't register a command.", e);
+            log.warn("Can't register a command: " + e.getLocalizedMessage());
         }
     }
 
@@ -46,8 +46,8 @@ public class Help extends Module {
         if (msg.command.equals("help")) {
             String message = "Available commands:";
             Command[] cmds = bot.getCommands(bot.isOwner(msg.fromJID));
-            for (int i = 0; i < cmds.length; i++) {
-                message += String.format("\n%s - %s", cmds[i].command, cmds[i].description);
+            for (Command cmd : cmds) {
+                message += String.format("\n%s - %s", cmd.command, cmd.description);
             }
             bot.sendReply(msg, message);
         }
