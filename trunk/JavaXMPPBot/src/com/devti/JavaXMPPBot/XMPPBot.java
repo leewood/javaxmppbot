@@ -288,12 +288,14 @@ public final class XMPPBot extends Thread implements Bot {
                         classLoader.loadClass("com.devti.JavaXMPPBot.modules." +
                                 m.trim()).getConstructor(Bot.class, Map.class);
                 // Get configuration properties for this module
+                String cfgPrefix = "modules." + m.trim() + ".";
                 Map<String, String> cfg = new HashMap<>();
                 Enumeration keys = properties.keys();
                 while (keys.hasMoreElements()) {
                     String key = (String) keys.nextElement();
-                    if (key.equals("modules." + m.trim() + ".")) {
-                        cfg.put(key, properties.getProperty(key));
+                    if (key.startsWith(cfgPrefix)) {
+                        cfg.put(key.substring(cfgPrefix.length()),
+                                properties.getProperty(key));
                     }
                 }
                 modules.add((Module) constructor.newInstance(this, cfg));
