@@ -95,7 +95,7 @@ public class Users extends Module {
         try {
             connectToDB();
         } catch (Exception e) {
-            log.warn("Can't prepare DB connection: " + e.getLocalizedMessage());
+            log.warn("Can't prepare DB connection", e);
         };
 
         // Register commands provided by this module
@@ -116,7 +116,7 @@ public class Users extends Module {
                     "approve_all", "approve all unaprroved user registration",
                     true, this));
         } catch (Exception e) {
-            log.warn("Can't register a command: " + e.getLocalizedMessage());
+            log.warn("Can't register a command", e);
         }
     }
 
@@ -130,8 +130,7 @@ public class Users extends Module {
                 return;
             }
         } catch (SQLException e) {
-            log.warn("JDBC connection isn't ready or can't check it: "
-                    + e.getLocalizedMessage());
+            log.warn("JDBC connection isn't ready or can't check it", e);
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -173,8 +172,7 @@ public class Users extends Module {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
             String md5sum = null;
             try {
@@ -182,8 +180,7 @@ public class Users extends Module {
                 md5sum = HexCodec.bytesToHex(
                         messageDigest.digest(msg.commandArgs.getBytes()));
             } catch (NoSuchAlgorithmException e) {
-                log.warn("Can't get MD5 digest for password: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't get MD5 digest for password", e);
             }
             if (password == null) {
                 try {
@@ -195,8 +192,7 @@ public class Users extends Module {
                         psInsert.executeUpdate();
                     }
                 } catch (Exception e) {
-                    log.warn("Can't execute JDBC statement: "
-                            + e.getLocalizedMessage());
+                    log.warn("Can't execute JDBC statement", e);
                 }
                 bot.sendReply(msg, "User " + msg.fromJID
                         + " registered successfully.");
@@ -210,8 +206,7 @@ public class Users extends Module {
                     psUpdate.executeUpdate();
                 }
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
             bot.sendReply(msg, "Password for user " + msg.fromJID
                     + " updated successfully.");
@@ -237,8 +232,7 @@ public class Users extends Module {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
             if (password == null) {
                 bot.sendReply(msg, "Error: you aren't registered.");
@@ -255,8 +249,7 @@ public class Users extends Module {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
             if (jid == null) {
                 try {
@@ -267,8 +260,7 @@ public class Users extends Module {
                         psUpdateNick.executeUpdate();
                     }
                 } catch (Exception e) {
-                    log.warn("Can't execute JDBC statement: "
-                            + e.getLocalizedMessage());
+                    log.warn("Can't execute JDBC statement", e);
                 }
                 bot.sendReply(msg, "Nickname of user " + msg.fromJID
                         + " changed to " + msg.commandArgs);
@@ -295,8 +287,7 @@ public class Users extends Module {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
             if (message.isEmpty()) {
                 bot.sendReply(msg, "There aren't unapproved user registrations.");
@@ -315,8 +306,7 @@ public class Users extends Module {
                 bot.sendReply(msg, "Registration for user '" + msg.commandArgs
                         + "' has been approved.");
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
             return;
         }
@@ -328,8 +318,7 @@ public class Users extends Module {
                 }
                 bot.sendReply(msg, "All unapproved user registrations have been approved.");
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
             return;
         }
@@ -340,7 +329,7 @@ public class Users extends Module {
         try {
             connection.close();
         } catch (SQLException e) {
-            log.warn("Can't close JDBC connection: " + e.getLocalizedMessage());
+            log.warn("Can't close JDBC connection", e);
         }
     }
 

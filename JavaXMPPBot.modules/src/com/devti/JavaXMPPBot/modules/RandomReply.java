@@ -83,7 +83,7 @@ public class RandomReply extends Module {
         try {
             connectToDB();
         } catch (Exception e) {
-            log.warn("Can't prepare DB connection: " + e.getLocalizedMessage());
+            log.warn("Can't prepare DB connection", e);
         }
 
         // Register commands provided by this module
@@ -95,15 +95,14 @@ public class RandomReply extends Module {
                     "reply_delete", "delete specified phrase from auto replies",
                     true, this));
         } catch (Exception e) {
-            log.warn("Can't register a command: " + e.getLocalizedMessage());
+            log.warn("Can't register a command", e);
         }
 
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            log.warn("Can't register message processor: "
-                    + e.getLocalizedMessage());
+            log.warn("Can't register message processor", e);
         }
     }
 
@@ -117,8 +116,7 @@ public class RandomReply extends Module {
                 return;
             }
         } catch (SQLException e) {
-            log.warn("JDBC connection isn't ready or can't check it: "
-                    + e.getLocalizedMessage());
+            log.warn("JDBC connection isn't ready or can't check it", e);
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -141,8 +139,7 @@ public class RandomReply extends Module {
                 }
                 bot.sendReply(msg, "New random reply has been added.");
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
         } else if (msg.command.equals("reply_delete")) {
             try {
@@ -153,8 +150,7 @@ public class RandomReply extends Module {
                 }
                 bot.sendReply(msg, "Random reply has been deleted.");
             } catch (Exception e) {
-                log.warn("Can't execute JDBC statement: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't execute JDBC statement", e);
             }
         }
     }
@@ -179,8 +175,7 @@ public class RandomReply extends Module {
                         bot.sendReply(msg, reply);
                     }
                 } catch (Exception e) {
-                    log.warn("Can't execute JDBC statement: "
-                            + e.getLocalizedMessage());
+                    log.warn("Can't execute JDBC statement", e);
                 }
             }
         }
@@ -192,7 +187,7 @@ public class RandomReply extends Module {
         try {
             connection.close();
         } catch (SQLException e) {
-            log.warn("Can't close JDBC connection: " + e.getLocalizedMessage());
+            log.warn("Can't close JDBC connection", e);
         }
     }
 }

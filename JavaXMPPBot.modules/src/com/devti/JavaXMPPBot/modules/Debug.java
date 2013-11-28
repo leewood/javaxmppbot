@@ -42,7 +42,7 @@ public class Debug extends Module {
             bot.registerCommand(new Command("modules", "list loaded modules", true, this));
             bot.registerCommand(new Command("config", "get configuration for the specified module", true, this));
         } catch (Exception e) {
-            log.warn("Can't register a command: " + e.getLocalizedMessage());
+            log.warn("Can't register a command", e);
         }
     }
 

@@ -37,11 +37,11 @@ public interface Bot {
     public void reloadConfig() throws Exception;
 
     /**
-     * Returns {@link Logger} for this bot.
+     * Returns {@link Log} for this bot.
      *
-     * @return {@link Logger}
+     * @return {@link Log}
      */
-    public Logger getLogger();
+    public Log getLog();
 
     /**
      * Returns the JID of the bot.

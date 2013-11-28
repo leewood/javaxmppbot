@@ -27,21 +27,21 @@ import java.util.Map;
 
 public class Module {
 
+    protected final Bot bot;
+    protected final Command[] commands;
+    protected final Map<String, String> config;
     protected final Logger log;
-    protected Bot bot;
-    protected Command[] commands;
-    protected Map<String, String> config;
 
     public Module(Bot bot, Map<String, String> cfg) {
         this.bot = bot;
-        this.log = bot.getLogger();
+        this.log = new Logger(this.bot.getLog(), "[" + this.getClass().getSimpleName() + "] ");
         config = new HashMap<>(cfg);
         commands = new Command[0];
     }
 
     public Module(Bot bot, Map<String, String> cfg, Map<String, String> defaultConfig) {
         this.bot = bot;
-        this.log = bot.getLogger();
+        this.log = new Logger(this.bot.getLog(), "[" + this.getClass().getSimpleName() + "] ");
         config = new HashMap<>(cfg);
         for (Map.Entry<String, String> entry : defaultConfig.entrySet()) {
             if (cfg.containsKey(entry.getKey())) {

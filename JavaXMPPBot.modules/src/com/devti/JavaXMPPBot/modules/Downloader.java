@@ -199,8 +199,7 @@ public class Downloader extends Module {
                 sc.init(null, trustAllCerts, new java.security.SecureRandom());
                 HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
             } catch (KeyManagementException | NoSuchAlgorithmException e) {
-                log.warn("Can't change trust manager for HTTPS connections: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't change trust manager for HTTPS connections", e);
             }
         }
 
@@ -225,8 +224,7 @@ public class Downloader extends Module {
                 imageSignatures.put(rs.getString(1), rs.getBytes(2));
             }
         } catch (Exception e) {
-            log.warn("Can't load image signatures from the DB: "
-                    + e.getLocalizedMessage());
+            log.warn("Can't load image signatures from the DB", e);
         }
 
         try {
@@ -235,16 +233,14 @@ public class Downloader extends Module {
                     "remove a file downloaded by Downloader module",
                     true, this));
         } catch (Exception e) {
-            log.warn("Can't register a command: "
-                    + e.getLocalizedMessage());
+            log.warn("Can't register a command", e);
         }
 
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            log.warn("Can't register message processor: "
-                    + e.getLocalizedMessage());
+            log.warn("Can't register message processor", e);
         }
     }
 
@@ -376,8 +372,7 @@ public class Downloader extends Module {
                 return;
             }
         } catch (SQLException e) {
-            log.warn("JDBC connection isn't ready or can't check it: "
-                    + e.getLocalizedMessage());
+            log.warn("JDBC connection isn't ready or can't check it", e);
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -469,8 +464,7 @@ public class Downloader extends Module {
                     bot.sendReply(msg, "Error: can't delete file '" + filename + "'.");
                 }
             } catch (Exception e) {
-                log.warn("Can't perfrom delete_file command.",
-                        e.getLocalizedMessage());
+                log.warn("Can't perfrom delete_file command", e);
                 bot.sendReply(msg, "Error: can't perfrom delete_file command.");
             }
         }
@@ -481,7 +475,7 @@ public class Downloader extends Module {
         try {
             connection.close();
         } catch (SQLException e) {
-            log.warn("Can't close JDBC connection", e.getLocalizedMessage());
+            log.warn("Can't close JDBC connection", e);
         }
     }
 }
@@ -519,7 +513,7 @@ class DownloaderThread extends Thread {
     public DownloaderThread(Bot bot, Downloader downloader, String url,
             ArrayList<String> tags, Message message) {
         this.bot = bot;
-        this.logger = bot.getLogger();
+        this.logger = new Logger(bot.getLog(), "[Downloader.DownloaderThread] ");
         this.downloader = downloader;
         this.message = message;
         this.url = url;

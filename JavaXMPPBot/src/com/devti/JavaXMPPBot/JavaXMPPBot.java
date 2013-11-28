@@ -88,7 +88,7 @@ public class JavaXMPPBot implements Daemon {
             String id = config.getFileName().toString().replaceFirst(".conf$", "");
             Path log = Paths.get(logsDir.toString(), id + ".log");
             try {
-                bots.add(new XMPPBot(id, config, new Logger(log)));
+                bots.add(new XMPPBot(id, config, new Log(log)));
             } catch (Exception e) {
                 throw new DaemonInitException("Can't load a bot with config file '"
                         + config + "': " + e.getLocalizedMessage());
