@@ -22,22 +22,8 @@
  */
 package com.devti.JavaXMPPBot;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.OpenOption;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
-import java.util.Formatter;
-import java.util.zip.GZIPOutputStream;
-
 /**
- * A Logger object is used to log messages to a file.
+ * A Logger object is used to log messages.
  *
  * @author Mikhail Telnov <michael.telnov at gmail.com>
  */
@@ -91,94 +77,36 @@ public class Logger {
         ERROR;
     }
 
-    private final Path logPath;
-    private final File logFile;
-    private BufferedWriter writer;
-    private Formatter formatter;
-    private final String format;
-    private final long sizeLimit;
-    private final int rotateCount;
+    private final Log log;
+    private final String prefix;
 
     /**
-     * Create a logger to log messages to a file.
+     * Create a {@link Logger} object for writing messages to the {@link Log}
      *
-     * @param log Path to the log file
-     * @throws IOException If can't open the log file to write
+     * @param log The {@link Log} object
      */
-    public Logger(Path log) throws IOException {
-        sizeLimit = 10 * 1024 * 1024; // 10MB
-        rotateCount = 10;
-        logPath = log;
-        writer = Files.newBufferedWriter(logPath,
-                StandardCharsets.UTF_8,
-                new OpenOption[]{
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.APPEND,
-                    StandardOpenOption.WRITE
-                });
-        logFile = logPath.toFile();
-        format = "%1$tY-%1$tm-%1$td %1tH:%1$tM:%1$tS.%1$tL%1$tz [%s] [%s] %s\n";
-        formatter = new Formatter(writer);
+    public Logger(Log log) {
+        this.log = log;
+        prefix = "";
     }
 
-    private synchronized void rotate() throws IOException {
-        // Rotate old log files if exists
-        if (rotateCount > 0) {
-            Files.deleteIfExists(Paths.get(logFile.toString() + "."
-                    + (rotateCount - 1) + ".gz"));
-            for (int i = rotateCount - 2; i >= 0; i--) {
-                Path path = Paths.get(logFile.toString() + "." + i + ".gz");
-                if (Files.exists(path)) {
-                    Files.move(path,
-                            Paths.get(logFile.toString() + "." + (i + 1) + ".gz"));
-                }
-            }
-        }
-        // Close current log file
-        formatter.close();
-        writer.close();
-        // Compress current log file
-        if (rotateCount > 0) {
-            byte[] buffer = new byte[1024];
-            try (GZIPOutputStream out = new GZIPOutputStream(
-                    new FileOutputStream(logFile.toString() + ".0.gz"));
-                    FileInputStream in = new FileInputStream(logFile)) {
-                int len;
-                while ((len = in.read(buffer)) > 0) {
-                    out.write(buffer, 0, len);
-                }
-                out.finish();
-            }
-        }
-        // Delete current log file
-        Files.delete(logPath);
-        // Open a new log file
-        writer = Files.newBufferedWriter(logPath,
-                StandardCharsets.UTF_8,
-                new OpenOption[]{
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.APPEND,
-                    StandardOpenOption.WRITE
-                });
-        formatter = new Formatter(writer);
+    /**
+     * Create a {@link Logger} object for writing messages with prefix to the
+     * {@link Log}
+     *
+     * @param log The {@link Log} object
+     * @param prefix The string prefix for each message
+     */
+    public Logger(Log log, String prefix) {
+        this.log = log;
+        this.prefix = prefix;
     }
 
-    private synchronized void log(Level severity, String message) {
-        // Rotate log file if needed
-        if (sizeLimit > 0 && logFile.length() > sizeLimit) {
-            try {
-                rotate();
-            } catch (IOException e) {
-                System.err.println("Can't rotate log file: " + e.getLocalizedMessage());
-            }
-        }
-        // Write down a log message
-        formatter.format(format, System.currentTimeMillis(), severity,
-                Thread.currentThread().getName(), message);
-        formatter.flush();
+    private void log(Logger.Level severity, String message) {
+        log.log(severity, prefix + message);
     }
 
-    private void log(Level severity, String format, Object... args) {
+    private void log(Logger.Level severity, String format, Object... args) {
         log(severity, String.format(format, args));
     }
 
@@ -192,13 +120,23 @@ public class Logger {
     }
 
     /**
+     * Log a ERROR message with localized exception message.
+     *
+     * @param message The string message
+     * @param e The exception
+     */
+    public void err(String message, Exception e) {
+        log(Level.ERROR, message + ": " + e.getLocalizedMessage());
+    }
+
+    /**
      * Log an ERROR message using the specified format string and arguments.
      *
      * <p>
      * The locale always used is the one returned by {@link
      * java.util.Locale#getDefault() Locale.getDefault()}.
      *
-     * @param format A format string (java.util.Formatter)
+     * @param format A format string ({@link java.util.Formatter})
      *
      * @param args Arguments referenced by the format specifiers in the format
      * string. If there are more arguments than format specifiers, the extra
@@ -224,6 +162,16 @@ public class Logger {
     }
 
     /**
+     * Log a WARNING message with localized exception message.
+     *
+     * @param message The string message
+     * @param e The exception
+     */
+    public void warn(String message, Exception e) {
+        log(Level.WARN, message + ": " + e.getLocalizedMessage());
+    }
+
+    /**
      * Log a WARNING message using the specified format string and arguments.
      *
      * <p>
@@ -239,7 +187,8 @@ public class Logger {
      * of a Java array as defined by
      * <cite>The Java&trade; Virtual Machine Specification</cite>. The behaviour
      * on a
-     * <tt>null</tt> argument depends on the java.util.Formatter conversion.
+     * <tt>null</tt> argument depends on the {@link java.util.Formatter}
+     * conversion.
      */
     public void warn(String format, Object... args) {
         log(Level.WARN, format, args);
@@ -255,13 +204,23 @@ public class Logger {
     }
 
     /**
+     * Log a INFO message with localized exception message.
+     *
+     * @param message The string message
+     * @param e The exception
+     */
+    public void info(String message, Exception e) {
+        log(Level.INFO, message + ": " + e.getLocalizedMessage());
+    }
+
+    /**
      * Log an INFO message using the specified format string and arguments.
      *
      * <p>
      * The locale always used is the one returned by {@link
      * java.util.Locale#getDefault() Locale.getDefault()}.
      *
-     * @param format A format string (java.util.Formatter)
+     * @param format A format string ({@link java.util.Formatter})
      *
      * @param args Arguments referenced by the format specifiers in the format
      * string. If there are more arguments than format specifiers, the extra
@@ -270,7 +229,8 @@ public class Logger {
      * of a Java array as defined by
      * <cite>The Java&trade; Virtual Machine Specification</cite>. The behaviour
      * on a
-     * <tt>null</tt> argument depends on the java.util.Formatter conversion.
+     * <tt>null</tt> argument depends on the {@link java.util.Formatter}
+     * conversion.
      */
     public void info(String format, Object... args) {
         log(Level.INFO, format, args);
@@ -286,13 +246,23 @@ public class Logger {
     }
 
     /**
+     * Log a DEBUG message with localized exception message.
+     *
+     * @param message The string message
+     * @param e The exception
+     */
+    public void debug(String message, Exception e) {
+        log(Level.DEBUG, message + ": " + e.getLocalizedMessage());
+    }
+
+    /**
      * Log a DEBUG message using the specified format string and arguments.
      *
      * <p>
      * The locale always used is the one returned by {@link
      * java.util.Locale#getDefault() Locale.getDefault()}.
      *
-     * @param format A format string (java.util.Formatter)
+     * @param format A format string ({@link java.util.Formatter})
      *
      * @param args Arguments referenced by the format specifiers in the format
      * string. If there are more arguments than format specifiers, the extra
@@ -301,7 +271,8 @@ public class Logger {
      * of a Java array as defined by
      * <cite>The Java&trade; Virtual Machine Specification</cite>. The behaviour
      * on a
-     * <tt>null</tt> argument depends on the java.util.Formatter conversion.
+     * <tt>null</tt> argument depends on the {@link java.util.Formatter}
+     * conversion.
      */
     public void debug(String format, Object... args) {
         log(Level.DEBUG, format, args);

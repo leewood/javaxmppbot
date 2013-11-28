@@ -29,7 +29,7 @@ import com.devti.JavaXMPPBot.Module;
 import java.util.Map;
 
 public class Control extends Module {
-
+    
     public Control(Bot bot, Map<String, String> cfg) {
         super(bot, cfg);
         try {
@@ -40,7 +40,7 @@ public class Control extends Module {
             bot.registerCommand(new Command("leave", "leave to the room(conference) specified as argument", true, this));
             bot.registerCommand(new Command("rooms", "list active rooms(conferences) specified as argument", true, this));
         } catch (Exception e) {
-            log.warn("Can't register a command: " + e.getLocalizedMessage());
+            log.warn("Can't register a command", e);
         }
     }
 
@@ -55,8 +55,7 @@ public class Control extends Module {
                 bot.reloadConfig();
                 bot.sendReply(msg, "Bot config has been reloaded.");
             } catch (Exception e) {
-                log.warn("An error occurred during config reloading: "
-                        + e.getLocalizedMessage());
+                log.warn("An error occurred during config reloading", e);
                 bot.sendReply(msg, "An error has been occurred during config reloading, examine log for more information.");
             }
             // Join to a chat room

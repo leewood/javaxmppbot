@@ -37,7 +37,7 @@ public class Help extends Module {
             bot.registerCommand(new Command("help", "list available commands",
                     false, this));
         } catch (Exception e) {
-            log.warn("Can't register a command: " + e.getLocalizedMessage());
+            log.warn("Can't register a command", e);
         }
     }
 

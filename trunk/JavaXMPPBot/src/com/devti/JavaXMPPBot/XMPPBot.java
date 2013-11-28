@@ -92,7 +92,8 @@ class ShutdownHandler extends Thread {
 public final class XMPPBot extends Thread implements Bot {
 
     private final String id;
-    private final Logger log;
+    private final Logger logger;
+    private final Log log;
     private int connectionRetries;
     private int connectionInterval;
     private int silenceTime;
@@ -116,16 +117,17 @@ public final class XMPPBot extends Thread implements Bot {
      *
      * @param id
      * @param configFile
-     * @param logger
+     * @param log
      * @throws Exception
      */
-    public XMPPBot(String id, Path configFile, Logger logger) throws Exception {
+    public XMPPBot(String id, Path configFile, Log log) throws Exception {
         this.id = id;
         this.setName(this.getClass().getName() + "(" + id + ")");
         enabled = true;
         roomsShouldBeReconnected = false;
         this.configFile = configFile;
-        this.log = logger;
+        this.log = log;
+        logger = new Logger(this.log, "[MAIN] ");
         modules = new ArrayList<>();
         commands = Collections.synchronizedMap(new HashMap<String, Command>());
         messageProcessors = Collections.synchronizedList(new ArrayList<Module>());
@@ -269,7 +271,7 @@ public final class XMPPBot extends Thread implements Bot {
                             "JavaXMPPBot" + File.separator + "modules");
             String[] pathes = modulesPath.split(";");
             for (String path : pathes) {
-                log.info("Adding path \"%s\" to class loader...", path);
+                logger.info("Adding path \"%s\" to class loader...", path);
                 addUrls(urls, new File(path));
             }
             URL[] urlsArray = new URL[urls.size()];
@@ -280,10 +282,10 @@ public final class XMPPBot extends Thread implements Bot {
             for (URL url : urlsArray) {
                 loadedURLs += " " + url.toString();
             }
-            log.info("Created new class loader with URLs:" + loadedURLs);
+            logger.info("Created new class loader with URLs:" + loadedURLs);
             String[] ma = properties.getProperty("modules").split(";");
             for (String m : ma) {
-                log.info("Loading module %s...", m);
+                logger.info("Loading module %s...", m);
                 java.lang.reflect.Constructor constructor =
                         classLoader.loadClass("com.devti.JavaXMPPBot.modules." +
                                 m.trim()).getConstructor(Bot.class, Map.class);
@@ -299,13 +301,13 @@ public final class XMPPBot extends Thread implements Bot {
                     }
                 }
                 modules.add((Module) constructor.newInstance(this, cfg));
-                log.info("Module %s has been loaded.", m);
+                logger.info("Module %s has been loaded.", m);
             }
         }
     }
 
     @Override
-    public Logger getLogger() {
+    public Log getLog() {
         return log;
     }
 
@@ -313,15 +315,15 @@ public final class XMPPBot extends Thread implements Bot {
     public void connect() throws Exception {
         boolean ok = false;
         for (int i = 0; i < connectionRetries; i++) {
-            log.info("Connecting to " + properties.getProperty("server"));
+            logger.info("Connecting to " + properties.getProperty("server"));
             try {
                 connection.connect();
-                log.info("OK! Connected to " +
+                logger.info("OK! Connected to " +
                         properties.getProperty("server"));
                 ok = true;
                 break;
             } catch (XMPPException e) {
-                log.warn("Can't connect to %s: %s",
+                logger.warn("Can't connect to %s: %s",
                         properties.getProperty("server"),
                         e.getLocalizedMessage());
             }
@@ -336,20 +338,20 @@ public final class XMPPBot extends Thread implements Bot {
 
         ok = false;
         for (int i = 0; i < connectionRetries; i++) {
-            log.info("Logging as %s on %s.",
+            logger.info("Logging as %s on %s.",
                     properties.getProperty("username"),
                     properties.getProperty("server"));
             try {
                 connection.login(properties.getProperty("username"),
                         properties.getProperty("password"),
                         properties.getProperty("resource"));
-                log.info("OK! Logged as %s on %s.",
+                logger.info("OK! Logged as %s on %s.",
                         properties.getProperty("username"),
                         properties.getProperty("server"));
                 ok = true;
                 break;
             } catch (XMPPException e) {
-                log.warn("Can't logon as %s on %s: %s",
+                logger.warn("Can't logon as %s on %s: %s",
                         properties.getProperty("username"),
                         properties.getProperty("server"),
                         e.getLocalizedMessage());
@@ -363,12 +365,12 @@ public final class XMPPBot extends Thread implements Bot {
                     properties.getProperty("username") + " failed.");
         }
 
-        log.info("Set connection listener");
+        logger.info("Set connection listener");
         connection.addConnectionListener(new ConnectionListener(this));
-        log.info("OK! connection listener is set");
-        log.info("Set message listener");
+        logger.info("OK! connection listener is set");
+        logger.info("Set message listener");
         connection.addPacketListener(new PacketProcessor(this), null);
-        log.info("OK! message listener is set");
+        logger.info("OK! message listener is set");
         for (String autojoinRoom : autojoinRooms) {
             joinRoom(autojoinRoom);
         }
@@ -378,7 +380,7 @@ public final class XMPPBot extends Thread implements Bot {
 
     @Override
     public void disconnect() {
-        log.info("Disconnection has been initiated.");
+        logger.info("Disconnection has been initiated.");
         try {
             if (connection.isConnected()) {
                 rooms.clear();
@@ -389,7 +391,7 @@ public final class XMPPBot extends Thread implements Bot {
                 }
             }
         } catch (Exception e) {
-            log.warn("Can't disconnect from %s: %s",
+            logger.warn("Can't disconnect from %s: %s",
                     properties.getProperty("server"), e.getLocalizedMessage());
         }
     }
@@ -404,23 +406,21 @@ public final class XMPPBot extends Thread implements Bot {
                         properties.getProperty("nick")),
                         properties.getProperty("rooms." + room + ".password"));
                 rooms.add(muc);
-                log.info("OK! Joined to room " + room);
+                logger.info("OK! Joined to room " + room);
                 try {
                     Thread.sleep(silenceTime * 1000);
                 } catch (InterruptedException e) {
-                    log.warn("Sleep has been interrupted: " +
-                            e.getLocalizedMessage());
+                    logger.warn("Sleep has been interrupted", e);
                 }
                 ignoreList.remove(room + "/.*");
                 break;
             } catch (XMPPException e) {
-                log.warn("Can't joint to room " + e.getLocalizedMessage());
+                logger.warn("Can't joint to room", e);
             }
             try {
                 Thread.sleep(connectionInterval * 1000);
             } catch (InterruptedException e) {
-                log.warn("Sleep has been interrupted: " +
-                        e.getLocalizedMessage());
+                logger.warn("Sleep has been interrupted", e);
             }
         }
     }
@@ -431,7 +431,7 @@ public final class XMPPBot extends Thread implements Bot {
             if (rooms.get(i).getRoom().equals(room)) {
                 rooms.get(i).leave();
                 rooms.remove(i);
-                log.info("OK! I have left chat-room " + room);
+                logger.info("OK! I have left chat-room " + room);
             }
         }
     }
@@ -626,7 +626,7 @@ public final class XMPPBot extends Thread implements Bot {
                 notifyAll();
             }
         } else {
-            log.warn("Can't send reply on message with type "
+            logger.warn("Can't send reply on message with type "
                     + originalMessage.type.toString());
         }
     }
@@ -643,8 +643,7 @@ public final class XMPPBot extends Thread implements Bot {
             try {
                 Thread.sleep(sendDelay);
             } catch (InterruptedException e) {
-                log.warn("Sleep has been interrupted: "
-                        + e.getLocalizedMessage());
+                logger.warn("Sleep has been interrupted", e);
             }
         }
     }
@@ -657,8 +656,7 @@ public final class XMPPBot extends Thread implements Bot {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
-                    log.warn("Sleep has been interrupted: " +
-                            e.getLocalizedMessage());
+                    logger.warn("Sleep has been interrupted", e);
                 }
 
                 String[] roomNames = getRooms();
@@ -680,8 +678,7 @@ public final class XMPPBot extends Thread implements Bot {
                     wait();
                 }
             } catch (InterruptedException e) {
-                log.warn("Waiting has been interrupted: " +
-                        e.getLocalizedMessage());
+                logger.warn("Waiting has been interrupted", e);
             }
 
         }

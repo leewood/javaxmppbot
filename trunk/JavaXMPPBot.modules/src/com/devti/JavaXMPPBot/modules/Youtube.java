@@ -122,15 +122,14 @@ public class Youtube extends Module {
                     "remove a stored youtube link specified by Youtube ID",
                     true, this));
         } catch (Exception e) {
-            log.warn("Can't register a command: " + e.getLocalizedMessage());
+            log.warn("Can't register a command", e);
         }
 
         // Register message processor for this module
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            log.warn("Can't register message processor: "
-                    + e.getLocalizedMessage());
+            log.warn("Can't register message processor", e);
         }
     }
 
@@ -144,8 +143,7 @@ public class Youtube extends Module {
                 return;
             }
         } catch (SQLException e) {
-            log.warn("JDBC connection isn't ready or can't check it: "
-                    + e.getLocalizedMessage());
+            log.warn("JDBC connection isn't ready or can't check it", e);
         }
         // Connect
         connection = DriverManager.getConnection(dbUrl, dbUsername, dbPassword);
@@ -239,8 +237,7 @@ public class Youtube extends Module {
                     break;
                 }
             } catch (Exception e) {
-                log.warn("Can't create an URL from string: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't create an URL from string", e);
             }
         }
         return super.processMessage(msg);
@@ -273,8 +270,7 @@ public class Youtube extends Module {
                 bot.sendReply(msg, "Error: youtube link '" + id
                         + "' isn't found.");
             } catch (Exception e) {
-                log.warn("Can't perfrom delete_youtube_link command: "
-                        + e.getLocalizedMessage());
+                log.warn("Can't perfrom delete_youtube_link command", e);
                 bot.sendReply(msg,
                         "Error: can't perfrom delete_youtube_link command.");
             }
@@ -287,7 +283,7 @@ public class Youtube extends Module {
         try {
             connection.close();
         } catch (SQLException e) {
-            log.warn("Can't close JDBC connection: " + e.getLocalizedMessage());
+            log.warn("Can't close JDBC connection", e);
         }
     }
 

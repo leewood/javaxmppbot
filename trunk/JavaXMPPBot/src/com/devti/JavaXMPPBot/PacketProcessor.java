@@ -30,7 +30,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import java.io.StringReader;
 import javax.xml.parsers.ParserConfigurationException;
-import org.w3c.dom.DOMException;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
@@ -41,47 +40,52 @@ public class PacketProcessor implements PacketListener {
 
     public PacketProcessor(Bot bot) {
         this.bot = bot;
-        this.logger = bot.getLogger();
+        this.logger = new Logger(bot.getLog(), "[PP] ");
     }
 
     @Override
     public void processPacket(Packet packet) {
+        String raw = packet.toXML();
+        logger.debug("IN: " + raw);
+        Node node;
         try {
-            String raw = packet.toXML();
-            logger.info("Have got a new packet: " + raw);
             Document document = DocumentBuilderFactory.
                     newInstance().newDocumentBuilder().
                     parse(new InputSource(new StringReader(raw)));
-            Node node = document.getFirstChild();
-            if (node.getNodeName().equalsIgnoreCase("message")) {
-                MessageProcessor mp = new MessageProcessor(bot, node);
-                mp.start();
-            } else if (node.getNodeName().equalsIgnoreCase("presence")) {
-                if ((node.getAttributes().getNamedItem("type") != null)
-                        && node.getAttributes().getNamedItem("type").
-                        getTextContent().
-                        equalsIgnoreCase("unavailable")) {
-                    String from = node.getAttributes().getNamedItem("from").
-                            getTextContent();
-                    String[] rooms = bot.getRooms();
-                    for (int i = 0; i < rooms.length; i++) {
-                        if (from.equalsIgnoreCase(rooms[i] + "/" + bot.getResource())) {
-                            bot.leaveRoom(rooms[i]);
-                            try {
-                                Thread.sleep(1000);
-                            } catch (InterruptedException e) {
-                                logger.warn("Sleep has been interrupted: "
-                                        + e.getLocalizedMessage());
-                            }
-                            bot.joinRoom(rooms[i]);
-                        }
-                    }
+            node = document.getFirstChild();
+        } catch (ParserConfigurationException | SAXException | IOException e) {
+            logger.warn("Can't parse a message", e);
+            return;
+        }
+
+        // Process if this is a chat message
+        if (node.getNodeName().equalsIgnoreCase("message")) {
+            MessageProcessor mp = new MessageProcessor(bot, node);
+            mp.start();
+            return;
+        }
+
+        // Rejoin to rooms if needed
+        if (node.getNodeName().equalsIgnoreCase("presence")
+                && (node.getAttributes().getNamedItem("type") != null)
+                && node.getAttributes().getNamedItem("type").
+                getTextContent().equalsIgnoreCase("unavailable")) {
+            String from = node.getAttributes().getNamedItem("from").
+                    getTextContent();
+            String[] rooms = bot.getRooms();
+            for (String room : rooms) {
+                if (!from.equalsIgnoreCase(room + "/" + bot.getResource())) {
+                    continue;
                 }
+                bot.leaveRoom(room);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    logger.warn("Sleep has been interrupted", e);
+                }
+                bot.joinRoom(room);
+                return;
             }
-        } catch (ParserConfigurationException | SAXException | IOException |
-                DOMException e) {
-            logger.warn("An error occurred during packet process: " +
-                    e.getLocalizedMessage());
         }
     }
 

@@ -58,8 +58,7 @@ public class RandomFile extends Module {
         try {
             bot.registerMessageProcessor(this);
         } catch (Exception e) {
-            log.warn("Can't register message processor: "
-                    + e.getLocalizedMessage());
+            log.warn("Can't register message processor", e);
         }
     }
 
