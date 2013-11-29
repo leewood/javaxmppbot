@@ -105,7 +105,6 @@ public final class XMPPBot extends Thread implements Bot {
     private final ConnectionConfiguration connectionConfiguration;
     private final List<Module> modules;
     private final Map<String, Command> commands;
-    private final List<Module> messageProcessors;
     private final List<Room> rooms;
     private String[] owners;
     private String[] autojoinRooms;
@@ -130,7 +129,6 @@ public final class XMPPBot extends Thread implements Bot {
         logger = new Logger(this.log, "[MAIN] ");
         modules = new ArrayList<>();
         commands = Collections.synchronizedMap(new HashMap<String, Command>());
-        messageProcessors = Collections.synchronizedList(new ArrayList<Module>());
         rooms = new ArrayList<>();
         properties = new Properties();
         ignoreList = new ArrayList<>();
@@ -253,7 +251,6 @@ public final class XMPPBot extends Thread implements Bot {
         }
 
         // Unload modules
-        messageProcessors.clear();
         commands.clear();
         for (int i = 0; i < modules.size(); i++) {
             modules.get(i).onUnload();
@@ -495,27 +492,6 @@ public final class XMPPBot extends Thread implements Bot {
         synchronized (commands) {
             return commands.get(command);
         }
-    }
-
-    @Override
-    public void registerMessageProcessor(Module module) throws Exception {
-        synchronized (messageProcessors) {
-            if (messageProcessors.contains(module)) {
-                throw new Exception("Module '" + module.getClass().getName() +
-                        "' is registred already as message processor.");
-            } else {
-                messageProcessors.add(module);
-            }
-        }
-    }
-
-    @Override
-    public Module[] getMessageProcessors() {
-        Module[] mp;
-        synchronized (messageProcessors) {
-            mp = messageProcessors.toArray(new Module[messageProcessors.size()]);
-        }
-        return mp;
     }
 
     @Override

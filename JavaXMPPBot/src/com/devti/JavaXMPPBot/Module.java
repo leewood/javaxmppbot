@@ -34,15 +34,15 @@ public class Module {
 
     public Module(Bot bot, Map<String, String> cfg) {
         this.bot = bot;
-        this.log = new Logger(this.bot.getLog(), "[" + this.getClass().getSimpleName() + "] ");
+        this.log = new Logger(this.bot.getLog(),
+                "[" + this.getClass().getSimpleName() + "] ");
         config = new HashMap<>(cfg);
         commands = new Command[0];
     }
 
-    public Module(Bot bot, Map<String, String> cfg, Map<String, String> defaultConfig) {
-        this.bot = bot;
-        this.log = new Logger(this.bot.getLog(), "[" + this.getClass().getSimpleName() + "] ");
-        config = new HashMap<>(cfg);
+    public Module(Bot bot, Map<String, String> cfg,
+            Map<String, String> defaultConfig) {
+        this(bot, cfg);
         for (Map.Entry<String, String> entry : defaultConfig.entrySet()) {
             if (cfg.containsKey(entry.getKey())) {
                 config.put(entry.getKey(), cfg.get(entry.getKey()));
@@ -50,7 +50,6 @@ public class Module {
                 config.put(entry.getKey(), entry.getValue());
             }
         }
-        commands = new Command[0];
     }
 
     public Map<String, String> getConfig() {

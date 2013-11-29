@@ -120,11 +120,11 @@ public class MessageProcessor extends Thread {
             return;
         }
 
-        // Process through all registred message processors if it isn't command
+        // Process through all modules if it isn't command
         if (message.command == null) {
-            Module[] modules = bot.getMessageProcessors();
-            for (Module module : modules) {
-                if (module.processMessage(message)) {
+            String[] modules = bot.getModules();
+            for (String module : modules) {
+                if (bot.getModule(module).processMessage(message)) {
                     break;
                 }
             }
