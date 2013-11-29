@@ -235,13 +235,6 @@ public class Downloader extends Module {
         } catch (Exception e) {
             log.warn("Can't register a command", e);
         }
-
-        // Register message processor for this module
-        try {
-            bot.registerMessageProcessor(this);
-        } catch (Exception e) {
-            log.warn("Can't register message processor", e);
-        }
     }
 
     public byte[] createImageSignature(File file) {
@@ -583,6 +576,7 @@ class DownloaderThread extends Thread {
         if (type == null) {
             logger.warn("Can't get content type for URL " + url);
             connection.disconnect();
+            return;
         }
         boolean acceptable = false;
         String[] types = type.split(";");
@@ -621,8 +615,8 @@ class DownloaderThread extends Thread {
                 while ((i = in.read()) != -1) {
                     count++;
                     if ((sizeLimit > 0) && (count > sizeLimit)) {
-                        throw new Exception("File is larger then limit (" +
-                                sizeLimit.toString() + " bytes)");
+                        throw new Exception("File is larger then limit ("
+                                + sizeLimit.toString() + " bytes)");
                     }
                     out.write(i);
                 }
@@ -633,8 +627,8 @@ class DownloaderThread extends Thread {
                 String realFileType = fileConnection.getContentType();
                 fileConnection.getInputStream().close();
                 if (!acceptableTypes.contains(realFileType)) {
-                    throw new Exception("Real file type (" + realFileType +
-                            ") isn't acceptable");
+                    throw new Exception("Real file type (" + realFileType
+                            + ") isn't acceptable");
                 }
                 logger.info("OK! Real file type is " + realFileType);
 
@@ -693,8 +687,8 @@ class DownloaderThread extends Thread {
                         String newFilename = String.format(
                                 downloader.filenameFormat,
                                 new Date(), md5sum, extension);
-                        String newFilepath = downloader.storeTo +
-                                File.separator + newFilename;
+                        String newFilepath = downloader.storeTo
+                                + File.separator + newFilename;
                         String from;
                         if (downloader.saveRealJID) {
                             from = message.fromJID;
@@ -707,8 +701,8 @@ class DownloaderThread extends Thread {
                             logger.info("File %s renamed to %s.",
                                     tmpFilename, newFilepath);
                         } else {
-                            throw new Exception("Can't rename file '" +
-                                    tmpFilename + "' to '" + newFilepath + "'");
+                            throw new Exception("Can't rename file '"
+                                    + tmpFilename + "' to '" + newFilepath + "'");
                         }
                         file = null;
                     }

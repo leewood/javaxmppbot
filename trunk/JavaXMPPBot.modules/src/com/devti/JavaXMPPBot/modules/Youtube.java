@@ -124,13 +124,6 @@ public class Youtube extends Module {
         } catch (Exception e) {
             log.warn("Can't register a command", e);
         }
-
-        // Register message processor for this module
-        try {
-            bot.registerMessageProcessor(this);
-        } catch (Exception e) {
-            log.warn("Can't register message processor", e);
-        }
     }
 
     private void connectToDB() throws Exception {
@@ -181,8 +174,8 @@ public class Youtube extends Module {
             // Check tag inclusions
         } else if (includeTags) {
             boolean skip = true;
-            for (int i = 0; i < tags.length; i++) {
-                if (messageTags.contains(tags[i])) {
+            for (String tag : tags) {
+                if (messageTags.contains(tag)) {
                     skip = false;
                 }
             }

@@ -170,22 +170,6 @@ public interface Bot {
     public Command getCommand(String command);
 
     /**
-     * Registers the message processor of the module for this bot.
-     *
-     * @param module {@link Module} object
-     * @throws Exception
-     */
-    public void registerMessageProcessor(Module module) throws Exception;
-
-    /**
-     * Returns list of {@link Module} objects with registered message
-     * processors.
-     *
-     * @return list of {@link Module} objects
-     */
-    public Module[] getMessageProcessors();
-
-    /**
      * Returns true if the specified JID is the bot owner.
      *
      * @param jid JID

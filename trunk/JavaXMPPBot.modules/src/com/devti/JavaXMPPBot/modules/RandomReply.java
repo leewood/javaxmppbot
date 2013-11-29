@@ -97,13 +97,6 @@ public class RandomReply extends Module {
         } catch (Exception e) {
             log.warn("Can't register a command", e);
         }
-
-        // Register message processor for this module
-        try {
-            bot.registerMessageProcessor(this);
-        } catch (Exception e) {
-            log.warn("Can't register message processor", e);
-        }
     }
 
     private void connectToDB() throws Exception {
@@ -130,28 +123,31 @@ public class RandomReply extends Module {
 
     @Override
     public void processCommand(Message msg) {
-        if (msg.command.equals("reply_add")) {
-            try {
-                synchronized (dbDriver) {
-                    connectToDB();
-                    insert.setString(1, msg.commandArgs);
-                    insert.executeUpdate();
+        switch (msg.command) {
+            case "reply_add":
+                try {
+                    synchronized (dbDriver) {
+                        connectToDB();
+                        insert.setString(1, msg.commandArgs);
+                        insert.executeUpdate();
+                    }
+                    bot.sendReply(msg, "New random reply has been added.");
+                } catch (Exception e) {
+                    log.warn("Can't execute JDBC statement", e);
                 }
-                bot.sendReply(msg, "New random reply has been added.");
-            } catch (Exception e) {
-                log.warn("Can't execute JDBC statement", e);
-            }
-        } else if (msg.command.equals("reply_delete")) {
-            try {
-                synchronized (dbDriver) {
-                    connectToDB();
-                    delete.setString(1, msg.commandArgs);
-                    delete.executeUpdate();
+                break;
+            case "reply_delete":
+                try {
+                    synchronized (dbDriver) {
+                        connectToDB();
+                        delete.setString(1, msg.commandArgs);
+                        delete.executeUpdate();
+                    }
+                    bot.sendReply(msg, "Random reply has been deleted.");
+                } catch (Exception e) {
+                    log.warn("Can't execute JDBC statement", e);
                 }
-                bot.sendReply(msg, "Random reply has been deleted.");
-            } catch (Exception e) {
-                log.warn("Can't execute JDBC statement", e);
-            }
+                break;
         }
     }
 
