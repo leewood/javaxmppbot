@@ -124,7 +124,6 @@ public class Downloader extends Module {
     private PreparedStatement psGetMd5ByFilename;
 
     private final HashMap<String, String> extensionsMap;
-    private final HashMap<String, byte[]> imageSignatures;
 
     protected final String storeTo;
     protected final String filenameFormat;
@@ -170,7 +169,6 @@ public class Downloader extends Module {
         byte minMatchPercent = new Byte(config.get("signature-min-match-percent"));
         int maxImageDistance = (int) Math.round(signatureBaseSize * signatureBaseSize * Math.sqrt(255 * 255 * 3));
         signatureMaxDistance = (int) Math.round(maxImageDistance - maxImageDistance * minMatchPercent / 100);
-        imageSignatures = new HashMap<>();
 
         // Disable SSL certificate validation
         if (config.get("disable-ssl-cert-validation").equalsIgnoreCase("yes")) {
@@ -215,18 +213,6 @@ public class Downloader extends Module {
                     e.getLocalizedMessage());
         }
 
-        // Load signatures
-        try {
-            connectToDB();
-            PreparedStatement getSignatures = connection.prepareStatement(config.get("select-signature"));
-            ResultSet rs = getSignatures.executeQuery();
-            while (rs.next()) {
-                imageSignatures.put(rs.getString(1), rs.getBytes(2));
-            }
-        } catch (Exception e) {
-            log.warn("Can't load image signatures from the DB", e);
-        }
-
         try {
             // Register commands provided by this module
             bot.registerCommand(new Command("delete_file",
@@ -263,9 +249,6 @@ public class Downloader extends Module {
     }
 
     public final void addImageSignature(String md5sum, byte[] signature) {
-        synchronized (imageSignatures) {
-            imageSignatures.put(md5sum, signature);
-        }
         synchronized (dbDriver) {
             try {
                 psAddSignature.setString(1, md5sum);
@@ -281,9 +264,12 @@ public class Downloader extends Module {
     }
 
     public String searchDupBySignature(byte[] signature) {
-        synchronized (imageSignatures) {
-            for (String md5sum : imageSignatures.keySet()) {
-                byte[] signature2 = imageSignatures.get(md5sum);
+        try {
+            connectToDB();
+            PreparedStatement getSignatures = connection.prepareStatement(config.get("select-signature"));
+            ResultSet rs = getSignatures.executeQuery();
+            while (rs.next()) {
+                byte[] signature2 = rs.getBytes(2);
                 int d = 0;
                 int c = 0;
                 for (int i = 0; i < signatureBaseSize; i++) {
@@ -295,10 +281,12 @@ public class Downloader extends Module {
                     }
                 }
                 if (d <= signatureMaxDistance) {
-                    return md5sum;
+                    return rs.getString(1);
                 }
             }
-        }
+        } catch (Exception e) {
+            log.warn("Can't load image signatures from the DB", e);
+        }    
         return null;
     }
 
@@ -349,9 +337,6 @@ public class Downloader extends Module {
             psDeleteTag.executeUpdate();
             psDeleteSignature.setString(1, md5sum);
             psDeleteSignature.executeUpdate();
-        }
-        synchronized (imageSignatures) {
-            imageSignatures.remove(md5sum);
         }
     }
 
