@@ -467,7 +467,7 @@ public final class XMPPBot extends Thread implements Bot {
         Collections.sort(names);
         for (String name : names) {
             Command command = commands.get(name);
-            if (owner || command.ownerOnly) {
+            if (owner || !command.ownerOnly) {
                 cmds.add(command);
             }
         }
