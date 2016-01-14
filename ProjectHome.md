@@ -1,0 +1,1 @@
+JavaXMPPBot is XMPP(Jabber) bot based on [Smack API](http://www.igniterealtime.org/projects/smack/). You can extend functionality by your own modules written in Java.
